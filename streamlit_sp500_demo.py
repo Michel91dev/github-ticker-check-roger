@@ -172,6 +172,13 @@ def main():
         text-align: left !important;
         justify-content: flex-start !important;
         padding-left: 6px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    [data-testid="stSidebarContent"] .stButton > button p {
+        text-align: left !important;
+        width: 100% !important;
+        margin: 0 !important;
     }
     </style>
     """, unsafe_allow_html=True)
