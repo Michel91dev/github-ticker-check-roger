@@ -247,6 +247,11 @@ def main():
         "AGI": "CA02107B1076",
         "MU": "US5951121038",
         "PANX.PA": "FR0014003TT8",
+        "IFX.DE": "DE0006231004",
+        "NP5.DE": "IT0003506015",
+        "005930.KS": "KR7005930003",
+        "TSM": "US8740391003",
+        "NEE": "US65339F1012",
         "MC.PA": "FR0000121014",
         "OR.PA": "FR0000121248",
         "AI.PA": "FR0000120073",
@@ -281,7 +286,10 @@ def main():
                 "PAEEM.PA": "🌍 Amundi PEA Émergents ETF",
                 "PUST.PA": "📈 Amundi PEA Nasdaq-100 ETF",
                 "PSP5.PA": "📈 Amundi PEA S&P 500 ETF",
-                "ASML": "🔬 ASML"
+                "ASML": "🔬 ASML",
+                "STMPA.PA": "🔧 STMicroelectronics",
+                "IFX.DE": "💡 Infineon",
+                "NP5.DE": "🧬 Newron Pharmaceuticals"
             },
             "TITRES": {
                 "SATS": "🛰️ EchoStar",
@@ -293,7 +301,12 @@ def main():
                 "AAPL": "📱 Apple",
                 "TSLA": "🚗 Tesla",
                 "NFLX": "🎬 Netflix",
-                "AMZN": "📦 Amazon"
+                "AMZN": "📦 Amazon",
+                "005930.KS": "📱 Samsung",
+                "NEE": "⚡ NextEra Energy",
+                "TSM": "🔧 TSMC",
+                "STX": "💾 Seagate",
+                "MU": "💾 Micron Technology"
             }
         },
         "Romain": {
@@ -403,6 +416,13 @@ def main():
     # Checkbox pour afficher les ISIN
     afficher_isin = st.sidebar.checkbox("🔍 Afficher les ISIN", key="afficher_isin")
 
+    # Tri des titres
+    ordre_tri = st.sidebar.selectbox(
+        "🔀 Trier par :",
+        ["Défaut", "Alphabétique", "Signal (Acheter en 1er)", "Signal (Vendre en 1er)"],
+        key="ordre_tri"
+    )
+
     # Charger tous les signaux en parallèle (cache 15 min)
     signaux_cache = get_all_signals(tuple(liste_tickers))
 
@@ -427,6 +447,16 @@ def main():
         if categorie not in options_par_categorie:
             options_par_categorie[categorie] = []
         options_par_categorie[categorie].append((ticker_key, option_text))
+
+    # Appliquer le tri choisi dans chaque catégorie
+    ordre_signal = {"Acheter": 0, "Attente": 1, "Neutre": 2, "Vendre": 3}
+    for cat in options_par_categorie:
+        if ordre_tri == "Alphabétique":
+            options_par_categorie[cat].sort(key=lambda x: x[1])
+        elif ordre_tri == "Signal (Acheter en 1er)":
+            options_par_categorie[cat].sort(key=lambda x: ordre_signal.get(signaux_cache.get(x[0], "Neutre"), 2))
+        elif ordre_tri == "Signal (Vendre en 1er)":
+            options_par_categorie[cat].sort(key=lambda x: -ordre_signal.get(signaux_cache.get(x[0], "Neutre"), 2))
 
     # Construire une liste unique avec séparateurs visuels pour un seul radio
     liste_radio = []
@@ -1067,6 +1097,92 @@ div[data-testid="stVerticalBlock"] { margin: 0 !important; padding: 0 !important
         labels={'Volume': 'Volume', 'index': 'Date'}
     )
     st.plotly_chart(fig_volume, use_container_width=True)
+
+    # ── Section : Informations société + commentaires Yahoo Finance ──
+    st.markdown("---")
+    st.subheader("🏢 Informations sur la société")
+
+    @st.cache_data(ttl=3600)
+    def get_info_societe(ticker_sym: str) -> dict:
+        """Récupérer les infos de base de la société depuis Yahoo Finance"""
+        try:
+            info = yf.Ticker(ticker_sym).info
+            return info
+        except Exception:
+            return {}
+
+    @st.cache_data(ttl=3600)
+    def get_actualites(ticker_sym: str) -> list:
+        """Récupérer les actualités depuis Yahoo Finance"""
+        try:
+            news = yf.Ticker(ticker_sym).news
+            return news if news else []
+        except Exception:
+            return []
+
+    info_soc = get_info_societe(selected_ticker)
+    actualites = get_actualites(selected_ticker)
+
+    if info_soc:
+        col_info1, col_info2 = st.columns(2)
+        with col_info1:
+            st.write("**📋 Fiche société**")
+            if info_soc.get("longName"):
+                st.write(f"- **Nom** : {info_soc.get('longName', 'N/A')}")
+            if info_soc.get("sector"):
+                st.write(f"- **Secteur** : {info_soc.get('sector', 'N/A')}")
+            if info_soc.get("industry"):
+                st.write(f"- **Industrie** : {info_soc.get('industry', 'N/A')}")
+            if info_soc.get("country"):
+                st.write(f"- **Pays** : {info_soc.get('country', 'N/A')}")
+            if info_soc.get("fullTimeEmployees"):
+                st.write(f"- **Employés** : {info_soc.get('fullTimeEmployees', 0):,}")
+            if info_soc.get("website"):
+                st.write(f"- **Site web** : [{info_soc.get('website')}]({info_soc.get('website')})")
+        with col_info2:
+            st.write("**💰 Données financières**")
+            market_cap = info_soc.get("marketCap")
+            if market_cap:
+                if market_cap >= 1e12:
+                    st.write(f"- **Capitalisation** : {market_cap/1e12:.2f} T$")
+                elif market_cap >= 1e9:
+                    st.write(f"- **Capitalisation** : {market_cap/1e9:.2f} Mrd$")
+                else:
+                    st.write(f"- **Capitalisation** : {market_cap/1e6:.2f} M$")
+            if info_soc.get("trailingPE"):
+                st.write(f"- **PER** : {info_soc.get('trailingPE'):.1f}")
+            if info_soc.get("dividendYield"):
+                st.write(f"- **Dividende** : {info_soc.get('dividendYield')*100:.2f}%")
+            if info_soc.get("fiftyTwoWeekHigh"):
+                st.write(f"- **Plus haut 52s** : {info_soc.get('fiftyTwoWeekHigh'):.2f}")
+            if info_soc.get("fiftyTwoWeekLow"):
+                st.write(f"- **Plus bas 52s** : {info_soc.get('fiftyTwoWeekLow'):.2f}")
+            if info_soc.get("targetMeanPrice"):
+                st.write(f"- **Objectif analystes** : {info_soc.get('targetMeanPrice'):.2f}")
+
+        # Description de la société
+        description = info_soc.get("longBusinessSummary", "")
+        if description:
+            with st.expander("📖 Description de la société"):
+                st.write(description)
+    else:
+        st.info("Informations société non disponibles pour ce ticker.")
+
+    # Actualités Yahoo Finance
+    st.subheader("📰 Dernières actualités (Yahoo Finance)")
+    if actualites:
+        for article in actualites[:6]:
+            titre = article.get("title", "Sans titre")
+            lien = article.get("link", "#")
+            source = article.get("publisher", "Source inconnue")
+            ts = article.get("providerPublishTime", 0)
+            if ts:
+                date_str = datetime.fromtimestamp(ts).strftime("%d/%m/%Y %H:%M")
+            else:
+                date_str = "Date inconnue"
+            st.markdown(f"- **[{titre}]({lien})** — *{source}* — {date_str}")
+    else:
+        st.info("Aucune actualité disponible pour ce ticker.")
 
 if __name__ == "__main__":
     main()
