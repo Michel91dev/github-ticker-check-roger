@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
+import re
 
 # Lire la version depuis le fichier
 def get_version():
@@ -452,7 +453,8 @@ def main():
     ordre_signal = {"Acheter": 0, "Attente": 1, "Neutre": 2, "Vendre": 3}
     for cat in options_par_categorie:
         if ordre_tri == "Alphabétique":
-            options_par_categorie[cat].sort(key=lambda x: x[1])
+            # Trier sur le nom pur (sans emoji) depuis actions_disponibles
+            options_par_categorie[cat].sort(key=lambda x: actions_disponibles[x[0]].split(" ", 1)[-1].lower())
         elif ordre_tri == "Signal (Acheter en 1er)":
             options_par_categorie[cat].sort(key=lambda x: ordre_signal.get(signaux_cache.get(x[0], "Neutre"), 2))
         elif ordre_tri == "Signal (Vendre en 1er)":
@@ -491,6 +493,56 @@ def main():
     # Si séparateur cliqué, utiliser le premier vrai ticker
     if selected_ticker is None:
         selected_ticker = liste_tickers[0]
+
+    # ── Gestion ISIN ──
+    with st.sidebar.expander("🔑 Gérer les ISIN"):
+        st.write("**Modifier ou ajouter un ISIN**")
+        # Initialiser le store ISIN dans session_state pour persistance
+        if "isin_custom" not in st.session_state:
+            st.session_state["isin_custom"] = {}
+
+        # Appliquer les ISIN personnalisés par-dessus les ISIN par défaut
+        isin_actions.update(st.session_state["isin_custom"])
+
+        # Sélectionner le ticker à modifier
+        ticker_isin = st.selectbox(
+            "Ticker :",
+            options=list(actions_disponibles.keys()),
+            format_func=lambda t: f"{t} — {actions_disponibles[t].split(' ', 1)[-1]}",
+            key="ticker_isin_sel"
+        )
+        isin_actuel = isin_actions.get(ticker_isin, "")
+        nouvel_isin = st.text_input(
+            "ISIN (ex: FR0000035093) :",
+            value="" if isin_actuel == "ISIN inconnu" else isin_actuel,
+            key="nouvel_isin_input",
+            max_chars=12
+        ).strip().upper()
+
+        isin_valide = bool(re.match(r'^[A-Z]{2}[A-Z0-9]{10}$', nouvel_isin)) if nouvel_isin else False
+
+        col_isin1, col_isin2 = st.columns(2)
+        with col_isin1:
+            if st.button("💾 Enregistrer", key="btn_save_isin"):
+                if not nouvel_isin:
+                    st.warning("ISIN vide — non enregistré.")
+                elif not isin_valide:
+                    st.error("Format invalide. Ex: FR0000035093 (2 lettres + 10 caractères)")
+                else:
+                    st.session_state["isin_custom"][ticker_isin] = nouvel_isin
+                    st.success(f"✅ ISIN {nouvel_isin} enregistré pour {ticker_isin}")
+        with col_isin2:
+            if st.button("🗑️ Supprimer", key="btn_del_isin"):
+                st.session_state["isin_custom"].pop(ticker_isin, None)
+                # Remettre inconnu si supprimé d'un ISIN par défaut
+                if ticker_isin in isin_actions:
+                    isin_actions[ticker_isin] = "ISIN inconnu"
+                st.success(f"ISIN supprimé pour {ticker_isin}")
+
+        if nouvel_isin and not isin_valide:
+            st.caption("⚠️ Format ISIN invalide")
+        elif isin_valide:
+            st.caption(f"✅ Format valide")
 
     # Option personnalisée en dessous
     custom_mode = st.sidebar.checkbox("🔧 Mode personnalisé")
