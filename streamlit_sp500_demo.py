@@ -501,16 +501,11 @@ def main():
             with col_sel:
                 isin_display = ""
                 if afficher_isin:
-                    if isin_val == "ISIN inconnu":
-                        isin_display = ' <span style="color:#E8622A;font-size:0.8em;">ℹ️</span>'
-                    else:
-                        isin_display = f' <span style="color:#E8622A;font-size:0.8em;font-weight:bold;">{isin_val}</span>'
-                st.markdown(
-                    f'<div style="{bg}padding:2px 4px;cursor:pointer;font-size:0.88em;">'
-                    f'{option_text}{isin_display}</div>',
-                    unsafe_allow_html=True
-                )
-                if st.button(f"▶ {option_text[:35]}", key=f"sel_{ticker_key}"):
+                    isin_display = " ℹ️" if isin_val == "ISIN inconnu" else f" {isin_val}"
+                label = f"{option_text}{isin_display}"
+                if est_selectionne:
+                    label = f"▶ {label}"
+                if st.button(label, key=f"sel_{ticker_key}", use_container_width=True):
                     st.session_state["selected_ticker_key"] = ticker_key
                     st.rerun()
             with col_del:
