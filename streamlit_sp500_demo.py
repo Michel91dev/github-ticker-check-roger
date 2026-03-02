@@ -510,7 +510,7 @@ def main():
                     f'{option_text}{isin_display}</div>',
                     unsafe_allow_html=True
                 )
-                if st.button(option_text[:40], key=f"sel_{ticker_key}", label_visibility="collapsed"):
+                if st.button(f"▶ {option_text[:35]}", key=f"sel_{ticker_key}"):
                     st.session_state["selected_ticker_key"] = ticker_key
                     st.rerun()
             with col_del:
