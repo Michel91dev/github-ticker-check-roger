@@ -185,6 +185,9 @@ def main():
         font-size: 0.75em !important;
         min-height: 0 !important;
     }
+    [data-testid="stSidebarContent"] [data-testid="stHorizontalBlock"] {
+        gap: 4px !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -503,7 +506,7 @@ def main():
                     st.markdown(
                         f'<div style="border:4px solid #C62828;border-radius:50%;'
                         f'width:28px;height:28px;display:flex;align-items:center;'
-                        f'justify-content:center;font-size:1.1em;margin-top:3px;">{emoji_feu}</div>',
+                        f'justify-content:center;font-size:1.1em;margin-top:3px;margin-right:-6px;">{emoji_feu}</div>',
                         unsafe_allow_html=True
                     )
                 else:
