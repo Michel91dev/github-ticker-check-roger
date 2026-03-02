@@ -492,7 +492,7 @@ def main():
                 if afficher_isin:
                     isin_txt = " ( )" if isin_val == "ISIN inconnu" else f" ({isin_val})"
                 if est_selectionne:
-                    label = f"▶ {emoji_feu} {nom_pur} → {signal}{isin_txt} ◄"
+                    label = f"▶▶▶ {emoji_feu} {nom_pur} → {signal}{isin_txt} ◄◄◄"
                 else:
                     label = f"  {emoji_feu} {nom_pur} → {signal}{isin_txt}"
                 if st.button(label, key=f"sel_{ticker_key}", use_container_width=True):
