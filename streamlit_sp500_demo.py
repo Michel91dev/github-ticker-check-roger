@@ -490,7 +490,7 @@ def main():
                 # Tout dans le label texte brut (signal + ISIN dans le cartouche)
                 isin_txt = ""
                 if afficher_isin:
-                    isin_txt = " ℹ️" if isin_val == "ISIN inconnu" else f" | {isin_val}"
+                    isin_txt = " ( )" if isin_val == "ISIN inconnu" else f" ({isin_val})"
                 if est_selectionne:
                     label = f"▶ {emoji_feu} {nom_pur} → {signal}{isin_txt} ◄"
                 else:
