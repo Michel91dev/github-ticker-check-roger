@@ -434,7 +434,13 @@ def main():
         signal = signaux_cache.get(ticker_key, "Neutre")
         emoji_feu = {"Acheter": "🟢", "Vendre": "🔴", "Attente": "🟡", "Neutre": "⚪"}.get(signal, "⚪")
 
-        option_text = f"{emoji_feu} {nom} → {signal}"
+        # Ajouter l'ISIN si la checkbox est cochée
+        isin_text = ""
+        if afficher_isin:
+            isin_val = isin_actions.get(ticker_key, "ISIN inconnu")
+            isin_text = " ℹ️ inconnu" if isin_val == "ISIN inconnu" else f" {isin_val}"
+
+        option_text = f"{emoji_feu} {nom} → {signal}{isin_text}"
 
         if categorie not in options_par_categorie:
             options_par_categorie[categorie] = []
