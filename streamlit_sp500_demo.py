@@ -488,7 +488,7 @@ def main():
             continue
         st.sidebar.markdown(
             f'<div style="font-weight:bold;color:#888;font-size:0.8em;'
-            f'margin:6px 0 2px 0;border-bottom:1px solid #ccc;">� {categorie}</div>',
+            f'margin:6px 0 2px 0;border-bottom:1px solid #ccc;">📊 {categorie}</div>',
             unsafe_allow_html=True
         )
         for ticker_key, option_text in options_par_categorie[categorie]:
