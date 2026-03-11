@@ -163,7 +163,8 @@ def detecter_croisements_ma(data):
 def get_connexion_mysql():
     """Connexion MySQL via Streamlit Secrets."""
     if "mysql" not in st.secrets:
-        raise RuntimeError("Secrets MySQL non configurés")
+        cles = list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else "non lisible"
+        raise RuntimeError(f"Secrets MySQL non configurés — clés disponibles : {cles}")
     cfg = st.secrets["mysql"]
     return pymysql.connect(
         host=cfg["host"],
