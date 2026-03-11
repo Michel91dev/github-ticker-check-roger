@@ -615,73 +615,105 @@ def main():
         unsafe_allow_html=True
     )
     with st.sidebar.expander("", expanded=False):
-        st.write("**Modifier ou ajouter un ISIN**")
-        # Les ISIN sont déjà chargés depuis MySQL dans isin_actions
+        onglet_add, onglet_edit = st.tabs(["➕ Ajouter", "✏️ Modifier"])
 
-        # Filtre par catégorie
-        cat_isin = st.radio(
-            "Catégorie :",
-            ["PEA", "COMPTE TITRES"],
-            horizontal=True,
-            key="cat_isin_radio"
-        )
-        cat_key = "PEA" if cat_isin == "PEA" else "TITRES"
-        tickers_cat = list(actions_par_utilisateur[utilisateur].get(cat_key, {}).keys())
-
-        # Sélectionner le ticker à modifier
-        ticker_isin = st.selectbox(
-            "Ticker :",
-            options=tickers_cat if tickers_cat else list(actions_disponibles.keys()),
-            format_func=lambda t: f"{t} — {actions_disponibles.get(t, t).split(' ', 1)[-1]}",
-            key="ticker_isin_sel"
-        )
-        isin_actuel = isin_actions.get(ticker_isin, "ISIN inconnu")
-
-        # Afficher l'ISIN actuel avec poubelle
-        col_cur1, col_cur2 = st.columns([4, 1])
-        with col_cur1:
-            if isin_actuel != "ISIN inconnu":
-                st.markdown(
-                    f'<span style="color:#FFAA80;font-weight:bold;">{isin_actuel}</span>',
-                    unsafe_allow_html=True
-                )
-            else:
-                st.markdown('<span style="color:#FFAA80;">ℹ️ inconnu</span>', unsafe_allow_html=True)
-        with col_cur2:
-            if st.button("🗑️", key="btn_del_isin", help="Supprimer cet ISIN"):
-                if supprimer_isin_mysql(utilisateur, ticker_isin):
-                    st.success("Supprimé")
-                    st.rerun()
+        # ── Onglet Ajouter un nouveau ticker ──
+        with onglet_add:
+            st.caption(f"Ajouter un ticker pour **{utilisateur}**")
+            nouveau_ticker = st.text_input(
+                "Ticker Yahoo Finance :",
+                key="nouveau_ticker_input",
+                placeholder="ex: AZN.L"
+            ).strip().upper()
+            nouveau_nom = st.text_input(
+                "Nom affiché :",
+                key="nouveau_nom_input",
+                placeholder="ex: AstraZeneca"
+            ).strip()
+            nouvel_isin_add = st.text_input(
+                "ISIN :",
+                key="nouvel_isin_add_input",
+                max_chars=14,
+                placeholder="ex: GB0009895292"
+            ).strip().upper()
+            cat_add = st.radio(
+                "Catégorie :",
+                ["PEA", "COMPTE TITRES"],
+                horizontal=True,
+                key="cat_add_radio"
+            )
+            cat_key_add = "PEA" if cat_add == "PEA" else "TITRES"
+            isin_valide_add = bool(re.match(r'^[A-Z]{2}[A-Z0-9]{9,12}$', nouvel_isin_add)) if nouvel_isin_add else False
+            if nouvel_isin_add and not isin_valide_add:
+                st.caption("⚠️ Format invalide")
+            elif isin_valide_add:
+                st.caption("✅ Format valide")
+            if st.button("💾 Ajouter", key="btn_add_ticker"):
+                if not nouveau_ticker:
+                    st.warning("Ticker vide.")
+                elif not nouvel_isin_add:
+                    st.warning("ISIN vide.")
+                elif not isin_valide_add:
+                    st.error("Format ISIN invalide.")
                 else:
-                    st.error("Erreur MySQL")
+                    nom_final = nouveau_nom if nouveau_nom else nouveau_ticker
+                    resultat = sauvegarder_isin_mysql(utilisateur, nouveau_ticker, nouvel_isin_add, cat_key_add)
+                    if resultat is True:
+                        st.success(f"✅ {nouveau_ticker} ({nouvel_isin_add}) ajouté en {cat_key_add}")
+                        st.info("⚠️ Pour que le ticker apparaisse dans la sidebar, il faut l'ajouter dans le code.")
+                    else:
+                        st.error(f"Erreur MySQL : {resultat}")
 
-        nouvel_isin = st.text_input(
-            "Nouvel ISIN (ex: FR0000035093) :",
-            value="",
-            key="nouvel_isin_input",
-            max_chars=12,
-            placeholder="FR0000035093"
-        ).strip().upper()
-
-        isin_valide = bool(re.match(r'^[A-Z]{2}[A-Z0-9]{10}$', nouvel_isin)) if nouvel_isin else False
-
-        if st.button("💾 Enregistrer", key="btn_save_isin"):
-            if not nouvel_isin:
-                st.warning("ISIN vide — non enregistré.")
-            elif not isin_valide:
-                st.error("Format invalide. Ex: FR0000035093")
-            else:
-                resultat = sauvegarder_isin_mysql(utilisateur, ticker_isin, nouvel_isin, cat_key)
-                if resultat is True:
-                    st.success(f"✅ {nouvel_isin} enregistré")
-                    st.rerun()
-                else:
-                    st.error(f"Erreur MySQL : {resultat}")
-
-        if nouvel_isin and not isin_valide:
-            st.caption("⚠️ Format invalide")
-        elif isin_valide:
-            st.caption("✅ Format valide")
+        # ── Onglet Modifier / Supprimer un ticker existant ──
+        with onglet_edit:
+            st.caption(f"Modifier l'ISIN d'un ticker existant de **{utilisateur}**")
+            tickers_avec_isin = sorted(isin_actions.keys())
+            ticker_edit = st.selectbox(
+                "Ticker :",
+                options=tickers_avec_isin,
+                format_func=lambda t: f"{t} — {actions_disponibles.get(t, isin_actions.get(t, t))}",
+                key="ticker_edit_sel"
+            )
+            isin_actuel = isin_actions.get(ticker_edit, "ISIN inconnu")
+            st.markdown(
+                f'ISIN actuel : <span style="color:#FFAA80;font-weight:bold;">{isin_actuel}</span>',
+                unsafe_allow_html=True
+            )
+            nouvel_isin_edit = st.text_input(
+                "Nouvel ISIN :",
+                key="nouvel_isin_edit_input",
+                max_chars=14,
+                placeholder="ex: FR0000035093"
+            ).strip().upper()
+            isin_valide_edit = bool(re.match(r'^[A-Z]{2}[A-Z0-9]{9,12}$', nouvel_isin_edit)) if nouvel_isin_edit else False
+            cat_edit = st.radio(
+                "Catégorie :",
+                ["PEA", "COMPTE TITRES"],
+                horizontal=True,
+                key="cat_edit_radio"
+            )
+            cat_key_edit = "PEA" if cat_edit == "PEA" else "TITRES"
+            col_save, col_del = st.columns([3, 1])
+            with col_save:
+                if st.button("💾 Modifier", key="btn_save_isin_edit"):
+                    if not nouvel_isin_edit:
+                        st.warning("ISIN vide.")
+                    elif not isin_valide_edit:
+                        st.error("Format invalide.")
+                    else:
+                        resultat = sauvegarder_isin_mysql(utilisateur, ticker_edit, nouvel_isin_edit, cat_key_edit)
+                        if resultat is True:
+                            st.success(f"✅ {nouvel_isin_edit} enregistré")
+                            st.rerun()
+                        else:
+                            st.error(f"Erreur MySQL : {resultat}")
+            with col_del:
+                if st.button("🗑️", key="btn_del_isin_edit", help="Supprimer cet ISIN"):
+                    if supprimer_isin_mysql(utilisateur, ticker_edit):
+                        st.success("Supprimé")
+                        st.rerun()
+                    else:
+                        st.error("Erreur MySQL")
 
     # Option personnalisée en dessous
     custom_mode = st.sidebar.checkbox("🔧 Mode personnalisé")
