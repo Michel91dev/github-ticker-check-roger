@@ -190,8 +190,8 @@ def charger_isin_mysql(utilisateur: str) -> dict:
         return {}
 
 
-def sauvegarder_isin_mysql(utilisateur: str, ticker: str, isin: str, categorie: str) -> bool:
-    """Sauvegarder ou mettre à jour un ISIN dans MySQL."""
+def sauvegarder_isin_mysql(utilisateur: str, ticker: str, isin: str, categorie: str):
+    """Sauvegarder ou mettre à jour un ISIN dans MySQL. Retourne True ou le message d'erreur."""
     try:
         conn = get_connexion_mysql()
         with conn.cursor() as cur:
@@ -204,8 +204,8 @@ def sauvegarder_isin_mysql(utilisateur: str, ticker: str, isin: str, categorie: 
         conn.commit()
         conn.close()
         return True
-    except Exception:
-        return False
+    except Exception as e:
+        return str(e)
 
 
 def supprimer_isin_mysql(utilisateur: str, ticker: str) -> bool:
@@ -668,11 +668,12 @@ def main():
             elif not isin_valide:
                 st.error("Format invalide. Ex: FR0000035093")
             else:
-                if sauvegarder_isin_mysql(utilisateur, ticker_isin, nouvel_isin, cat_key):
+                resultat = sauvegarder_isin_mysql(utilisateur, ticker_isin, nouvel_isin, cat_key)
+                if resultat is True:
                     st.success(f"✅ {nouvel_isin} enregistré")
                     st.rerun()
                 else:
-                    st.error("Erreur MySQL")
+                    st.error(f"Erreur MySQL : {resultat}")
 
         if nouvel_isin and not isin_valide:
             st.caption("⚠️ Format invalide")
