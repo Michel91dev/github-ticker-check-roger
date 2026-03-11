@@ -32,8 +32,10 @@ Déployée sur Streamlit Community Cloud, données via Yahoo Finance, ISIN persi
 - **Affichage ISIN** : optionnel, affiché entre parenthèses dans chaque cartouche
 
 ### Gestion des ISIN
-- **Cartouche "🔑 Gérer les ISIN"** : ajout, modification, suppression d'ISIN par ticker
-- **Validation format** : regex `^[A-Z]{2}[A-Z0-9]{10,12}$`
+- **Cartouche "🔑 Gérer les ISIN"** : 2 onglets distincts
+  - **➕ Ajouter** : saisir un nouveau ticker (Yahoo Finance), son nom, son ISIN et sa catégorie
+  - **✏️ Modifier** : sélectionner un ticker existant pour corriger son ISIN ou le supprimer
+- **Validation format** : regex `^[A-Z]{2}[A-Z0-9]{9,12}$`
 - **Persistance MySQL** : chaque modification est immédiatement sauvegardée en base de données
 - **Par utilisateur** : Michel, Roger et Romain ont chacun leurs propres ISIN indépendants
 - **Fallback** : si MySQL inaccessible, les ISIN par défaut (hardcodés) sont utilisés sans erreur visible
@@ -306,6 +308,8 @@ Le fichier `version.txt` contient le numéro de version courant, affiché dans l
 | 2.5.35 | Bordure boule 4px |
 | 2.6.0  | **Version stable de qualité ⭐** — sidebar finalisée |
 | 2.6.1  | Persistance ISIN via MySQL (VPS Hostinger) |
+| 2.6.2  | Debug secrets MySQL — affichage erreur détaillé |
+| 2.6.3  | Interface ISIN refaite : onglets ➕ Ajouter / ✏️ Modifier |
 
 ---
 
