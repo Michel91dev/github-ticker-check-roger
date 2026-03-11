@@ -667,18 +667,34 @@ def main():
                 isv = st.session_state["add_isin_trouve"]
                 cat = st.session_state["add_cat_trouve"]
 
+                def _alerte_rouge(msg: str):
+                    """Afficher une alerte rouge en gras, taille augmentée."""
+                    st.markdown(
+                        f'<div style="background:#B71C1C;color:white;padding:7px 10px;border-radius:5px;'
+                        f'font-size:1.05em;font-weight:bold;margin:4px 0;">⛔ {msg}</div>',
+                        unsafe_allow_html=True
+                    )
+
+                def _alerte_info(msg: str):
+                    """Afficher une info bleue en gras, taille augmentée."""
+                    st.markdown(
+                        f'<div style="background:#1565C0;color:white;padding:7px 10px;border-radius:5px;'
+                        f'font-size:1.05em;font-weight:bold;margin:4px 0;">ℹ️ {msg}</div>',
+                        unsafe_allow_html=True
+                    )
+
                 # Alerte doublon
                 if tk in actions_disponibles:
-                    st.warning(f"⚠️ **{tk}** est déjà dans votre liste en {actions_categories.get(tk, '?')}.")
+                    _alerte_rouge(f"{tk} est déjà dans votre liste en {actions_categories.get(tk, '?')}.")
 
                 # Alerte éligibilité PEA
                 pays_pea = {"FR", "DE", "NL", "BE", "ES", "IT", "PT", "FI", "AT", "IE", "LU", "DK", "SE", "NO"}
                 pays_isin = isv[:2] if len(isv) >= 2 else ""
                 eligible_pea = pays_isin in pays_pea
                 if cat == "PEA" and not eligible_pea:
-                    st.warning(f"⚠️ L'ISIN `{isv}` (pays : **{pays_isin}**) n'est probablement **pas éligible au PEA**.")
+                    _alerte_rouge(f"ISIN {isv} (pays : {pays_isin}) probablement pas éligible au PEA.")
                 elif cat == "TITRES" and eligible_pea:
-                    st.info(f"ℹ️ L'ISIN `{isv}` (pays : **{pays_isin}**) pourrait être **éligible au PEA**.")
+                    _alerte_info(f"ISIN {isv} (pays : {pays_isin}) pourrait être éligible au PEA.")
 
                 st.markdown(f"**Ticker :** `{tk}`")
                 nm_edit = st.text_input("Nom :", value=nm, key="add_nom_edit_input")
