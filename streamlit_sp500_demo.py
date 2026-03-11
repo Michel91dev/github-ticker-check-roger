@@ -216,16 +216,34 @@ def charger_tickers_mysql(utilisateur: str) -> dict:
         return {}
 
 
-def sauvegarder_ticker_mysql(utilisateur: str, ticker: str, isin: str, categorie: str, nom: str, emoji: str):
+def charger_meta_mysql(utilisateur: str) -> dict:
+    """Charger date_achat et commentaire pour chaque ticker d'un utilisateur. Retourne {ticker: (date, commentaire)}"""
+    try:
+        conn = get_connexion_mysql()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT ticker, date_achat, commentaire FROM isin_utilisateurs WHERE utilisateur = %s",
+                (utilisateur,)
+            )
+            rows = cur.fetchall()
+        conn.close()
+        return {ticker: (date_achat, commentaire) for ticker, date_achat, commentaire in rows}
+    except Exception:
+        return {}
+
+
+def sauvegarder_ticker_mysql(utilisateur: str, ticker: str, isin: str, categorie: str, nom: str, emoji: str,
+                              date_achat=None, commentaire: str = ""):
     """Sauvegarder ou mettre à jour un ticker+ISIN dans MySQL. Retourne True ou le message d'erreur."""
     try:
         conn = get_connexion_mysql()
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO isin_utilisateurs (utilisateur, ticker, isin, categorie, nom, emoji)
-                   VALUES (%s, %s, %s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE isin = %s, categorie = %s, nom = %s, emoji = %s""",
-                (utilisateur, ticker, isin, categorie, nom, emoji, isin, categorie, nom, emoji)
+                """INSERT INTO isin_utilisateurs (utilisateur, ticker, isin, categorie, nom, emoji, date_achat, commentaire)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE isin = %s, categorie = %s, nom = %s, emoji = %s, date_achat = %s, commentaire = %s""",
+                (utilisateur, ticker, isin, categorie, nom, emoji, date_achat, commentaire,
+                 isin, categorie, nom, emoji, date_achat, commentaire)
             )
         conn.commit()
         conn.close()
@@ -234,16 +252,18 @@ def sauvegarder_ticker_mysql(utilisateur: str, ticker: str, isin: str, categorie
         return str(e)
 
 
-def sauvegarder_isin_mysql(utilisateur: str, ticker: str, isin: str, categorie: str):
-    """Mettre à jour uniquement l'ISIN d'un ticker existant. Retourne True ou le message d'erreur."""
+def sauvegarder_isin_mysql(utilisateur: str, ticker: str, isin: str, categorie: str,
+                            date_achat=None, commentaire: str = ""):
+    """Mettre à jour l'ISIN, catégorie, date et commentaire d'un ticker. Retourne True ou le message d'erreur."""
     try:
         conn = get_connexion_mysql()
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO isin_utilisateurs (utilisateur, ticker, isin, categorie)
-                   VALUES (%s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE isin = %s, categorie = %s""",
-                (utilisateur, ticker, isin, categorie, isin, categorie)
+                """INSERT INTO isin_utilisateurs (utilisateur, ticker, isin, categorie, date_achat, commentaire)
+                   VALUES (%s, %s, %s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE isin = %s, categorie = %s, date_achat = %s, commentaire = %s""",
+                (utilisateur, ticker, isin, categorie, date_achat, commentaire,
+                 isin, categorie, date_achat, commentaire)
             )
         conn.commit()
         conn.close()
@@ -437,6 +457,9 @@ def main():
     # Fallback : dict vide si MySQL inaccessible
     actions_par_utilisateur = {utilisateur: actions_par_utilisateur_mysql}
 
+    # Charger date_achat + commentaire pour chaque ticker
+    meta_tickers = charger_meta_mysql(utilisateur)
+
     # Actions disponibles pour l'utilisateur courant (aplatir pour le traitement)
     actions_disponibles = {}
     actions_categories = {}
@@ -536,7 +559,7 @@ def main():
             emoji_feu = {"Acheter": "🟢", "Vendre": "🔴", "Attente": "🟡", "Neutre": "⚪"}.get(signal, "⚪")
             est_selectionne = (st.session_state["selected_ticker_key"] == ticker_key)
 
-            col_boule, col_sel, col_del = st.sidebar.columns([1, 8, 1])
+            col_boule, col_sel, col_info, col_del = st.sidebar.columns([1, 7, 1, 1])
             with col_boule:
                 if est_selectionne:
                     st.markdown(
@@ -561,8 +584,20 @@ def main():
                 if st.button(label, key=f"sel_{ticker_key}", use_container_width=True):
                     st.session_state["selected_ticker_key"] = ticker_key
                     st.rerun()
+            with col_info:
+                meta = meta_tickers.get(ticker_key, (None, None))
+                date_str = str(meta[0]) if meta[0] else ""
+                comment_str = meta[1] if meta[1] else ""
+                tooltip = ""
+                if date_str:
+                    tooltip += f"📅 {date_str}"
+                if comment_str:
+                    tooltip += (" — " if tooltip else "") + f"💬 {comment_str}"
+                if not tooltip:
+                    tooltip = "Pas de note"
+                st.button("ℹ️", key=f"info_{ticker_key}", help=tooltip, use_container_width=True)
             with col_del:
-                if st.button("🗑️", key=f"del_{ticker_key}", help=f"Supprimer ISIN de {ticker_key}", use_container_width=True):
+                if st.button("🗑️", key=f"del_{ticker_key}", help=f"Supprimer {ticker_key}", use_container_width=True):
                     if "isin_custom" not in st.session_state:
                         st.session_state["isin_custom"] = {}
                     st.session_state["isin_custom"].pop(ticker_key, None)
@@ -647,10 +682,15 @@ def main():
 
                 st.markdown(f"**Ticker :** `{tk}`")
                 nm_edit = st.text_input("Nom :", value=nm, key="add_nom_edit_input")
+                date_add = st.date_input("Date d'achat (optionnel) :", value=None, key="add_date_input")
+                comment_add = st.text_input("Commentaire :", key="add_comment_input", placeholder="ex: Renforcement", max_chars=200)
 
                 def _sauvegarder_et_reset(cat_finale):
                     """Sauvegarder le ticker avec la catégorie choisie et réinitialiser."""
-                    res = sauvegarder_ticker_mysql(utilisateur, tk, isv, cat_finale, nm_edit, "📈")
+                    res = sauvegarder_ticker_mysql(
+                        utilisateur, tk, isv, cat_finale, nm_edit, "📈",
+                        date_achat=date_add, commentaire=comment_add
+                    )
                     if res is True:
                         st.success(f"✅ {tk} — {nm_edit} ajouté en {cat_finale}")
                         for k in ["add_ticker_trouve", "add_nom_trouve", "add_isin_trouve", "add_cat_trouve"]:
@@ -717,6 +757,11 @@ def main():
                 key="cat_edit_radio"
             )
             cat_key_edit = "PEA" if cat_edit == "PEA" else "TITRES"
+            meta_edit = meta_tickers.get(ticker_edit, (None, ""))
+            date_edit_val = meta_edit[0] if meta_edit[0] else None
+            comment_edit_val = meta_edit[1] if meta_edit[1] else ""
+            date_edit = st.date_input("Date d'achat :", value=date_edit_val, key="edit_date_input")
+            comment_edit = st.text_input("Commentaire :", value=comment_edit_val, key="edit_comment_input", max_chars=200)
             col_save, col_del = st.columns([3, 1])
             with col_save:
                 if st.button("💾 Modifier", key="btn_save_isin_edit"):
@@ -725,7 +770,10 @@ def main():
                     elif not isin_valide_edit:
                         st.error("Format invalide.")
                     else:
-                        resultat = sauvegarder_isin_mysql(utilisateur, ticker_edit, nouvel_isin_edit, cat_key_edit)
+                        resultat = sauvegarder_isin_mysql(
+                            utilisateur, ticker_edit, nouvel_isin_edit, cat_key_edit,
+                            date_achat=date_edit, commentaire=comment_edit
+                        )
                         if resultat is True:
                             st.success(f"✅ {nouvel_isin_edit} enregistré")
                             st.rerun()
