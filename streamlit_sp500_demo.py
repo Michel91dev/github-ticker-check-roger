@@ -563,7 +563,7 @@ def main():
         unsafe_allow_html=True
     )
     with st.sidebar.expander("", expanded=True):
-        onglet_add, onglet_edit = st.tabs(["➕ Ajouter", "✏️ Modifier"])
+        onglet_add, onglet_edit, onglet_dl = st.tabs(["➕ Ajouter", "✏️ Modifier", "📈 Export"])
 
         # ── Onglet Ajouter un nouveau ticker ──
         with onglet_add:
@@ -583,7 +583,7 @@ def main():
             elif isin_valide_add:
                 st.caption("✅ ISIN valide")
 
-            if st.button("� Rechercher", key="btn_rechercher_isin"):
+            if st.button("🔍 Rechercher", key="btn_rechercher_isin"):
                 if not nouvel_isin_add:
                     st.warning("ISIN vide.")
                 elif not isin_valide_add:
@@ -631,19 +631,27 @@ def main():
 
                 st.markdown(f"**Ticker :** `{tk}`")
                 nm_edit = st.text_input("Nom :", value=nm, key="add_nom_edit_input")
-                col_ok, col_ann = st.columns(2)
-                with col_ok:
-                    if st.button("✅ Confirmer", key="btn_confirmer_add"):
-                        resultat = sauvegarder_ticker_mysql(utilisateur, tk, isv, cat, nm_edit, "📈")
-                        if resultat is True:
-                            st.success(f"✅ {tk} — {nm_edit} ajouté en {cat}")
-                            for k in ["add_ticker_trouve", "add_nom_trouve", "add_isin_trouve", "add_cat_trouve"]:
-                                st.session_state.pop(k, None)
-                            st.rerun()
-                        elif "Duplicate entry" in str(resultat):
-                            st.warning(f"⚠️ **{tk}** existe déjà en base pour {utilisateur}.")
-                        else:
-                            st.error(f"Erreur MySQL : {resultat}")
+
+                def _sauvegarder_et_reset(cat_finale):
+                    """Sauvegarder le ticker avec la catégorie choisie et réinitialiser."""
+                    res = sauvegarder_ticker_mysql(utilisateur, tk, isv, cat_finale, nm_edit, "📈")
+                    if res is True:
+                        st.success(f"✅ {tk} — {nm_edit} ajouté en {cat_finale}")
+                        for k in ["add_ticker_trouve", "add_nom_trouve", "add_isin_trouve", "add_cat_trouve"]:
+                            st.session_state.pop(k, None)
+                        st.rerun()
+                    elif "Duplicate entry" in str(res):
+                        st.warning(f"⚠️ **{tk}** existe déjà en base pour {utilisateur}.")
+                    else:
+                        st.error(f"Erreur MySQL : {res}")
+
+                col_pea, col_cto, col_ann = st.columns(3)
+                with col_pea:
+                    if st.button("🏛️ PEA", key="btn_confirmer_pea"):
+                        _sauvegarder_et_reset("PEA")
+                with col_cto:
+                    if st.button("📈 CTO", key="btn_confirmer_cto"):
+                        _sauvegarder_et_reset("TITRES")
                 with col_ann:
                     if st.button("❌ Annuler", key="btn_annuler_add"):
                         for k in ["add_ticker_trouve", "add_nom_trouve", "add_isin_trouve", "add_cat_trouve"]:
@@ -700,6 +708,29 @@ def main():
                         st.rerun()
                     else:
                         st.error("Erreur MySQL")
+
+        # ── Onglet Export base de données ──
+        with onglet_dl:
+            st.caption("Télécharger toute la base en CSV")
+            try:
+                conn_dl = get_connexion_mysql()
+                with conn_dl.cursor() as cur_dl:
+                    cur_dl.execute(
+                        "SELECT utilisateur, ticker, isin, categorie, nom, emoji FROM isin_utilisateurs ORDER BY utilisateur, categorie, ticker"
+                    )
+                    rows_dl = cur_dl.fetchall()
+                conn_dl.close()
+                df_dl = pd.DataFrame(rows_dl, columns=["utilisateur", "ticker", "isin", "categorie", "nom", "emoji"])
+                csv_dl = df_dl.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label=f"⬇️ Télécharger ({len(df_dl)} lignes)",
+                    data=csv_dl,
+                    file_name="bourse_isin.csv",
+                    mime="text/csv",
+                    key="btn_dl_csv"
+                )
+            except Exception as e:
+                st.error(f"Erreur : {e}")
 
     # Option personnalisée en dessous
     custom_mode = st.sidebar.checkbox("🔧 Mode personnalisé")
