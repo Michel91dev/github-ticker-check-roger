@@ -178,7 +178,7 @@ def get_connexion_mysql():
 
 
 def charger_isin_mysql(utilisateur: str) -> dict:
-    """Charger les ISIN personnalisés depuis MySQL pour un utilisateur."""
+    """Charger les ISIN depuis MySQL pour un utilisateur."""
     try:
         conn = get_connexion_mysql()
         with conn.cursor() as cur:
@@ -193,8 +193,48 @@ def charger_isin_mysql(utilisateur: str) -> dict:
         return {}
 
 
+def charger_tickers_mysql(utilisateur: str) -> dict:
+    """Charger les tickers depuis MySQL pour un utilisateur. Retourne {categorie: {ticker: 'emoji nom'}}"""
+    try:
+        conn = get_connexion_mysql()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT ticker, nom, categorie, emoji FROM isin_utilisateurs WHERE utilisateur = %s ORDER BY categorie, nom",
+                (utilisateur,)
+            )
+            rows = cur.fetchall()
+        conn.close()
+        resultat = {}
+        for ticker, nom, categorie, emoji in rows:
+            if categorie not in resultat:
+                resultat[categorie] = {}
+            nom_affiche = nom if nom else ticker
+            resultat[categorie][ticker] = f"{emoji} {nom_affiche}"
+        return resultat
+    except Exception:
+        return {}
+
+
+def sauvegarder_ticker_mysql(utilisateur: str, ticker: str, isin: str, categorie: str, nom: str, emoji: str):
+    """Sauvegarder ou mettre à jour un ticker+ISIN dans MySQL. Retourne True ou le message d'erreur."""
+    try:
+        conn = get_connexion_mysql()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO isin_utilisateurs (utilisateur, ticker, isin, categorie, nom, emoji)
+                   VALUES (%s, %s, %s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE isin = %s, categorie = %s, nom = %s, emoji = %s""",
+                (utilisateur, ticker, isin, categorie, nom, emoji, isin, categorie, nom, emoji)
+            )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        return str(e)
+
+
 def sauvegarder_isin_mysql(utilisateur: str, ticker: str, isin: str, categorie: str):
-    """Sauvegarder ou mettre à jour un ISIN dans MySQL. Retourne True ou le message d'erreur."""
+    """Mettre à jour uniquement l'ISIN d'un ticker existant. Retourne True ou le message d'erreur."""
     try:
         conn = get_connexion_mysql()
         with conn.cursor() as cur:
@@ -375,103 +415,10 @@ def main():
     isin_mysql = charger_isin_mysql(utilisateur)
     isin_actions.update(isin_mysql)
 
-    # Actions par utilisateur avec catégories PEA/TITRES (corrigées)
-    actions_par_utilisateur = {
-        "Michel": {
-            "PEA": {
-                "^GSPC": "📈 S&P 500",
-                "PANX.PA": "📈 Amundi NASDAQ-100 ETF",
-                "CW8.PA": "🌍 Amundi MSCI World Swap ETF",
-                "PAEEM.PA": "🌍 Amundi PEA Émergents ETF",
-                "PUST.PA": "📈 Amundi PEA Nasdaq-100 ETF",
-                "PSP5.PA": "📈 Amundi PEA S&P 500 ETF",
-                "ASML": "🔬 ASML",
-                "STMPA.PA": "🔧 STMicroelectronics",
-                "IFX.DE": "💡 Infineon",
-                "NP5.DE": "🧬 Newron Pharmaceuticals"
-            },
-            "TITRES": {
-                "SATS": "🛰️ EchoStar",
-                "DBX": "☁️ Dropbox",
-                "COIN": "₿ Coinbase",
-                "PYPL": "💳 PayPal",
-                "ZM": "🎥 Zoom",
-                "MSFT": "🖥️ Microsoft",
-                "AAPL": "📱 Apple",
-                "TSLA": "🚗 Tesla",
-                "NFLX": "🎬 Netflix",
-                "AMZN": "📦 Amazon",
-                "005930.KS": "📱 Samsung",
-                "NEE": "⚡ NextEra Energy",
-                "TSM": "🔧 TSMC",
-                "STX": "💾 Seagate",
-                "MU": "💾 Micron Technology"
-            }
-        },
-        "Romain": {
-            "PEA": {
-                "FGR.PA": "🏗️ Eiffage",
-                "SOI.PA": "⚡ Soitec",
-                "PSP5.PA": "📈 Amundi PEA S&P 500 ETF",
-                "PCEU.PA": "🇪🇺 Amundi PEA MSCI Europe ETF",
-                "STMPA.PA": "🔧 STMicroelectronics",
-                "DSY.PA": "💻 Dassault Systèmes",
-                "WPEA.PA": "🌍 iShares MSCI World PEA ETF",
-                "C50.PA": "🇪🇺 Amundi EURO STOXX 50 ETF",
-                "PAASI.PA": "🌏 Amundi PEA Asie Émergente ETF",
-                "VIE.PA": "♻️ Veolia Environnement",
-                "CHIP.PA": "🔬 Amundi Semiconductors ETF",
-                "PAEEM.PA": "🌍 Amundi PEA Émergents ETF",
-                "AM.PA": "✈️ Dassault Aviation",
-                "BAYN.DE": "💊 Bayer",
-                "DEEZR.PA": "🎵 Deezer",
-                "LSG.OL": "🐟 Lerøy Seafood"
-            },
-            "TITRES": {
-                "FORSE.PA": "🔋 Forsee Power",
-                "SATS": "🛰️ EchoStar"
-            }
-        },
-        "Roger": {
-            "PEA": {
-                "^GSPC": "📈 S&P 500",
-                "SAF.PA": "✈️ Safran",
-                "AIR": "✈️ Airbus",
-                "ASML": "🔬 ASML",
-                "NEE": "⚡ NextEra Energy",
-                "DFNS": "🛡️ Defence ETF",
-                "RYAAY": "✈️ Ryanair",
-                "BAYN.DE": "💊 Bayer"
-            },
-            "TITRES": {
-                "SATS": "🛰️ EchoStar",
-                "TSM": "🔧 TSMC",
-                "NVDA": "🎮 NVIDIA",
-                "STX": "💾 Seagate",
-                "GOOGL": "🔍 Alphabet",
-                "AIBD": "🤖 AI & Big Data ETF",
-                "CCJ": "☢️ Cameco",
-                "AVGO": "📡 Broadcom",
-                "VST": "⚡ Vistra",
-                "V": "💳 Visa",
-                "AMD": "🖥️ AMD",
-                "ATLX": "🔋 Atlas Lithium",
-                "PDN.AX": "☢️ Paladin Energy",
-                "RHM.DE": "🛡️ Rheinmetall",
-                "NET": "☁️ Cloudflare",
-                "REGN": "💊 Regeneron",
-                "FRE.DE": "🏥 Fresenius",
-                "LRN": "🎓 Stride Inc",
-                "PLTR": "🛡️ Palantir",
-                "ABVX": "💉 Abivax",
-                "MSFT": "🖥️ Microsoft",
-                "AAPL": "📱 Apple",
-                "META": "📘 Meta",
-                "AGI": "⛏️ Alamos Gold",
-                "MU": "💾 Micron Technology"
-            }
-        }
-    }
+    # Charger les tickers depuis MySQL (plus de hardcode)
+    actions_par_utilisateur_mysql = charger_tickers_mysql(utilisateur)
+    # Fallback : dict vide si MySQL inaccessible
+    actions_par_utilisateur = {utilisateur: actions_par_utilisateur_mysql}
 
     # Actions disponibles pour l'utilisateur courant (aplatir pour le traitement)
     actions_disponibles = {}
@@ -657,10 +604,10 @@ def main():
                     st.error("Format ISIN invalide.")
                 else:
                     nom_final = nouveau_nom if nouveau_nom else nouveau_ticker
-                    resultat = sauvegarder_isin_mysql(utilisateur, nouveau_ticker, nouvel_isin_add, cat_key_add)
+                    resultat = sauvegarder_ticker_mysql(utilisateur, nouveau_ticker, nouvel_isin_add, cat_key_add, nom_final, "📈")
                     if resultat is True:
-                        st.success(f"✅ {nouveau_ticker} ({nouvel_isin_add}) ajouté en {cat_key_add}")
-                        st.info("⚠️ Pour que le ticker apparaisse dans la sidebar, il faut l'ajouter dans le code.")
+                        st.success(f"✅ {nouveau_ticker} — {nom_final} ajouté en {cat_key_add}")
+                        st.rerun()
                     else:
                         st.error(f"Erreur MySQL : {resultat}")
 
