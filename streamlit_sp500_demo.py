@@ -15,7 +15,6 @@ import re
 import requests
 import pymysql
 import bcrypt
-from streamlit_cookies_controller import CookieController
 
 # Lire la version depuis le fichier
 def get_version():
@@ -379,22 +378,9 @@ def supprimer_utilisateur(utilisateur: str) -> bool:
         return False
 
 
-def afficher_login(cookie_mgr, version=""):
+def afficher_login(version=""):
     """Afficher l'écran de login. Retourne False si non authentifié."""
-    # Déjà authentifié en session
     if st.session_state.get("authentifie"):
-        return True
-
-    # Vérifier le cookie persistant
-    try:
-        cookie_user = cookie_mgr.get("tcr_user")
-        cookie_role = cookie_mgr.get("tcr_role")
-    except Exception:
-        cookie_user, cookie_role = None, None
-    if cookie_user and cookie_role:
-        st.session_state["authentifie"] = True
-        st.session_state["utilisateur_connecte"] = cookie_user
-        st.session_state["role_connecte"] = cookie_role
         return True
 
     st.markdown(
@@ -413,8 +399,6 @@ def afficher_login(cookie_mgr, version=""):
                     st.session_state["authentifie"] = True
                     st.session_state["utilisateur_connecte"] = nom
                     st.session_state["role_connecte"] = role
-                    cookie_mgr.set("tcr_user", nom)
-                    cookie_mgr.set("tcr_role", role)
                     st.rerun()
                 else:
                     st.error("Identifiants incorrects.")
@@ -424,15 +408,10 @@ def afficher_login(cookie_mgr, version=""):
 def main():
     st.set_page_config(page_title="Ticker-Check-Roger", page_icon="📊", layout="wide")
 
-    # Instancier le cookie controller une seule fois par session (évite reruns parasites)
-    if "cookie_mgr" not in st.session_state:
-        st.session_state["cookie_mgr"] = CookieController()
-    cookie_mgr = st.session_state["cookie_mgr"]
-
     version = get_version()
     docs = get_indicator_docs()
 
-    if not afficher_login(cookie_mgr, version):
+    if not afficher_login(version):
         st.stop()
 
     # CSS global : alignement gauche des boutons sidebar
@@ -517,13 +496,8 @@ def main():
         )
     with col_deco:
         if st.button("❌", help="Se déconnecter", use_container_width=True):
-            for k in ["authentifie", "utilisateur_connecte", "role_connecte"]:
+            for k in ["authentifie", "utilisateur_connecte", "role_connecte", "profil_vue"]:
                 st.session_state.pop(k, None)
-            try:
-                cookie_mgr.remove("tcr_user")
-                cookie_mgr.remove("tcr_role")
-            except Exception:
-                pass
             st.rerun()
 
     # ISIN des actions pour affichage optionnel
