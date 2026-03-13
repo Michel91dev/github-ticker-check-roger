@@ -474,7 +474,7 @@ def main():
             unsafe_allow_html=True
         )
     with col_deco:
-        if st.button("🚪", help="Déconnexion", use_container_width=True):
+        if st.button("❌", help="Se déconnecter", use_container_width=True):
             for k in ["authentifie", "utilisateur_connecte", "role_connecte"]:
                 st.session_state.pop(k, None)
             st.rerun()
@@ -922,57 +922,6 @@ def main():
                     else:
                         st.error("Erreur MySQL")
 
-        # ── Onglet Admin ──
-        if st.session_state.get("role_connecte") == "admin":
-            with st.expander("🔐 Administration utilisateurs", expanded=False):
-                st.markdown("**Utilisateurs enregistrés :**")
-                for u, r in charger_utilisateurs_auth():
-                    st.markdown(f"- `{u}` — *{r}*")
-
-                st.markdown("---")
-                with st.form("form_creer_user"):
-                    st.markdown("**Créer un utilisateur**")
-                    new_nom = st.text_input("Nom", key="admin_new_nom")
-                    new_mdp = st.text_input("Mot de passe", type="password", key="admin_new_mdp")
-                    new_role = st.radio("Rôle", ["user", "admin"], horizontal=True, key="admin_new_role")
-                    if st.form_submit_button("➕ Créer", use_container_width=True):
-                        if new_nom and new_mdp:
-                            if creer_utilisateur(new_nom, new_mdp, new_role):
-                                st.success(f"✅ {new_nom} créé")
-                                st.rerun()
-                            else:
-                                st.error("Erreur (utilisateur déjà existant ?)")
-                        else:
-                            st.warning("Nom et mot de passe requis.")
-
-                st.markdown("---")
-                with st.form("form_reset_mdp"):
-                    st.markdown("**Réinitialiser un mot de passe**")
-                    liste_u = [u for u, _ in charger_utilisateurs_auth()]
-                    user_sel = st.selectbox("Utilisateur", liste_u, key="admin_reset_sel")
-                    nouveau_mdp = st.text_input("Nouveau mot de passe", type="password", key="admin_reset_mdp")
-                    if st.form_submit_button("💾 Enregistrer", use_container_width=True):
-                        if nouveau_mdp:
-                            if set_mdp(user_sel, nouveau_mdp):
-                                st.success(f"✅ Mot de passe de {user_sel} mis à jour")
-                            else:
-                                st.error("Erreur MySQL")
-                        else:
-                            st.warning("Mot de passe vide.")
-
-                st.markdown("---")
-                with st.form("form_suppr_user"):
-                    st.markdown("**Supprimer un utilisateur**")
-                    liste_u2 = [u for u, _ in charger_utilisateurs_auth() if u != utilisateur]
-                    user_del = st.selectbox("Utilisateur", liste_u2, key="admin_del_sel") if liste_u2 else None
-                    if st.form_submit_button("🗑️ Supprimer", use_container_width=True):
-                        if user_del:
-                            if supprimer_utilisateur(user_del):
-                                st.success(f"✅ {user_del} supprimé")
-                                st.rerun()
-                            else:
-                                st.error("Erreur MySQL")
-
         # ── Onglet Export base de données ──
         with onglet_dl:
             st.caption("Télécharger toute la base en CSV")
@@ -995,6 +944,63 @@ def main():
                 )
             except Exception as e:
                 st.error(f"Erreur : {e}")
+
+    # ── Section Admin (visible uniquement pour l'admin) ──
+    if st.session_state.get("role_connecte") == "admin":
+        st.sidebar.markdown(
+            '<div style="background:linear-gradient(90deg,#B71C1C,#C62828);'
+            'color:white;padding:4px 8px;border-radius:6px;font-weight:bold;'
+            'font-size:0.9em;margin:10px 0 2px 0;">🔐 ADMINISTRATION</div>',
+            unsafe_allow_html=True
+        )
+        with st.sidebar.expander("Gérer les utilisateurs", expanded=False):
+            st.markdown("**Utilisateurs enregistrés :**")
+            for u, r in charger_utilisateurs_auth():
+                st.markdown(f"- `{u}` — *{r}*")
+
+            st.markdown("---")
+            with st.form("form_creer_user"):
+                st.markdown("**Créer un utilisateur**")
+                new_nom = st.text_input("Nom", key="admin_new_nom")
+                new_mdp = st.text_input("Mot de passe", type="password", key="admin_new_mdp")
+                new_role = st.radio("Rôle", ["user", "admin"], horizontal=True, key="admin_new_role")
+                if st.form_submit_button("➕ Créer", use_container_width=True):
+                    if new_nom and new_mdp:
+                        if creer_utilisateur(new_nom, new_mdp, new_role):
+                            st.success(f"✅ {new_nom} créé")
+                            st.rerun()
+                        else:
+                            st.error("Erreur (utilisateur déjà existant ?)")
+                    else:
+                        st.warning("Nom et mot de passe requis.")
+
+            st.markdown("---")
+            with st.form("form_reset_mdp"):
+                st.markdown("**Réinitialiser un mot de passe**")
+                liste_u = [u for u, _ in charger_utilisateurs_auth()]
+                user_sel = st.selectbox("Utilisateur", liste_u, key="admin_reset_sel")
+                nouveau_mdp = st.text_input("Nouveau mot de passe", type="password", key="admin_reset_mdp")
+                if st.form_submit_button("💾 Enregistrer", use_container_width=True):
+                    if nouveau_mdp:
+                        if set_mdp(user_sel, nouveau_mdp):
+                            st.success(f"✅ Mot de passe de {user_sel} mis à jour")
+                        else:
+                            st.error("Erreur MySQL")
+                    else:
+                        st.warning("Mot de passe vide.")
+
+            st.markdown("---")
+            with st.form("form_suppr_user"):
+                st.markdown("**Supprimer un utilisateur**")
+                liste_u2 = [u for u, _ in charger_utilisateurs_auth() if u != utilisateur]
+                user_del = st.selectbox("Utilisateur", liste_u2, key="admin_del_sel") if liste_u2 else None
+                if st.form_submit_button("🗑️ Supprimer", use_container_width=True):
+                    if user_del:
+                        if supprimer_utilisateur(user_del):
+                            st.success(f"✅ {user_del} supprimé")
+                            st.rerun()
+                        else:
+                            st.error("Erreur MySQL")
 
     # Option personnalisée en dessous
     custom_mode = st.sidebar.checkbox("🔧 Mode personnalisé")
