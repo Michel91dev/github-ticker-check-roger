@@ -18,6 +18,12 @@ import bcrypt
 import hmac
 import hashlib
 import secrets
+import os
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+from sqlalchemy.pool import QueuePool
+
+load_dotenv()  # Charge .env si présent (VPS), sinon sans effet (Streamlit Cloud)
 
 # Lire la version depuis le fichier
 def get_version():
@@ -165,35 +171,46 @@ def detecter_croisements_ma(data):
 
     return golden_crosses, death_crosses
 
-def get_connexion_mysql():
-    """Connexion MySQL via Streamlit Secrets."""
-    if "mysql" not in st.secrets:
-        cles = list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else "non lisible"
-        raise RuntimeError(f"Secrets MySQL non configurés — clés disponibles : {cles}")
+def _get_db_config() -> dict:
+    """Lit la config MySQL depuis .env (VPS) ou st.secrets (Streamlit Cloud)."""
+    if os.getenv("MYSQL_HOST"):
+        return {
+            "host": os.getenv("MYSQL_HOST"),
+            "port": int(os.getenv("MYSQL_PORT", 3306)),
+            "database": os.getenv("MYSQL_DATABASE"),
+            "user": os.getenv("MYSQL_USER"),
+            "password": os.getenv("MYSQL_PASSWORD"),
+        }
     cfg = st.secrets["mysql"]
-    return pymysql.connect(
-        host=cfg["host"],
-        port=int(cfg["port"]),
-        database=cfg["database"],
-        user=cfg["user"],
-        password=cfg["password"],
-        charset="utf8mb4",
-        connect_timeout=5
+    return {
+        "host": cfg["host"],
+        "port": int(cfg["port"]),
+        "database": cfg["database"],
+        "user": cfg["user"],
+        "password": cfg["password"],
+    }
+
+
+@st.cache_resource
+def _get_engine():
+    """Crée le pool de connexions SQLAlchemy (singleton, partagé entre sessions)."""
+    cfg = _get_db_config()
+    url = (
+        f"mysql+pymysql://{cfg['user']}:{cfg['password']}"
+        f"@{cfg['host']}:{cfg['port']}/{cfg['database']}?charset=utf8mb4"
     )
+    return create_engine(url, poolclass=QueuePool, pool_size=5, max_overflow=10, pool_pre_ping=True)
 
 
 def charger_isin_mysql(utilisateur: str) -> dict:
     """Charger les ISIN depuis MySQL pour un utilisateur."""
     try:
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT ticker, isin FROM isin_utilisateurs WHERE utilisateur = %s",
-                (utilisateur,)
-            )
-            rows = cur.fetchall()
-        conn.close()
-        return {ticker: isin for ticker, isin in rows}
+        with _get_engine().connect() as conn:
+            rows = conn.execute(
+                text("SELECT ticker, isin FROM isin_utilisateurs WHERE utilisateur = :u"),
+                {"u": utilisateur}
+            ).fetchall()
+        return {r[0]: r[1] for r in rows}
     except Exception:
         return {}
 
@@ -201,14 +218,11 @@ def charger_isin_mysql(utilisateur: str) -> dict:
 def charger_tickers_mysql(utilisateur: str) -> dict:
     """Charger les tickers depuis MySQL pour un utilisateur. Retourne {categorie: {ticker: 'emoji nom'}}"""
     try:
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT ticker, nom, categorie, emoji FROM isin_utilisateurs WHERE utilisateur = %s ORDER BY categorie, nom",
-                (utilisateur,)
-            )
-            rows = cur.fetchall()
-        conn.close()
+        with _get_engine().connect() as conn:
+            rows = conn.execute(
+                text("SELECT ticker, nom, categorie, emoji FROM isin_utilisateurs WHERE utilisateur = :u ORDER BY categorie, nom"),
+                {"u": utilisateur}
+            ).fetchall()
         resultat = {}
         for ticker, nom, categorie, emoji in rows:
             if categorie not in resultat:
@@ -223,15 +237,12 @@ def charger_tickers_mysql(utilisateur: str) -> dict:
 def charger_meta_mysql(utilisateur: str) -> dict:
     """Charger date_achat et commentaire pour chaque ticker d'un utilisateur. Retourne {ticker: (date, commentaire)}"""
     try:
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT ticker, date_achat, commentaire FROM isin_utilisateurs WHERE utilisateur = %s",
-                (utilisateur,)
-            )
-            rows = cur.fetchall()
-        conn.close()
-        return {ticker: (date_achat, commentaire) for ticker, date_achat, commentaire in rows}
+        with _get_engine().connect() as conn:
+            rows = conn.execute(
+                text("SELECT ticker, date_achat, commentaire FROM isin_utilisateurs WHERE utilisateur = :u"),
+                {"u": utilisateur}
+            ).fetchall()
+        return {r[0]: (r[1], r[2]) for r in rows}
     except Exception:
         return {}
 
@@ -240,17 +251,13 @@ def sauvegarder_ticker_mysql(utilisateur: str, ticker: str, isin: str, categorie
                               date_achat=None, commentaire: str = ""):
     """Sauvegarder ou mettre à jour un ticker+ISIN dans MySQL. Retourne True ou le message d'erreur."""
     try:
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute(
+        with _get_engine().begin() as conn:
+            conn.execute(text(
                 """INSERT INTO isin_utilisateurs (utilisateur, ticker, isin, categorie, nom, emoji, date_achat, commentaire)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE isin = %s, categorie = %s, nom = %s, emoji = %s, date_achat = %s, commentaire = %s""",
-                (utilisateur, ticker, isin, categorie, nom, emoji, date_achat, commentaire,
-                 isin, categorie, nom, emoji, date_achat, commentaire)
-            )
-        conn.commit()
-        conn.close()
+                   VALUES (:u, :t, :i, :c, :n, :e, :da, :co)
+                   ON DUPLICATE KEY UPDATE isin=:i, categorie=:c, nom=:n, emoji=:e, date_achat=:da, commentaire=:co"""
+            ), {"u": utilisateur, "t": ticker, "i": isin, "c": categorie, "n": nom,
+                "e": emoji, "da": date_achat, "co": commentaire})
         return True
     except Exception as e:
         return str(e)
@@ -260,17 +267,12 @@ def sauvegarder_isin_mysql(utilisateur: str, ticker: str, isin: str, categorie: 
                             date_achat=None, commentaire: str = ""):
     """Mettre à jour l'ISIN, catégorie, date et commentaire d'un ticker. Retourne True ou le message d'erreur."""
     try:
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute(
+        with _get_engine().begin() as conn:
+            conn.execute(text(
                 """INSERT INTO isin_utilisateurs (utilisateur, ticker, isin, categorie, date_achat, commentaire)
-                   VALUES (%s, %s, %s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE isin = %s, categorie = %s, date_achat = %s, commentaire = %s""",
-                (utilisateur, ticker, isin, categorie, date_achat, commentaire,
-                 isin, categorie, date_achat, commentaire)
-            )
-        conn.commit()
-        conn.close()
+                   VALUES (:u, :t, :i, :c, :da, :co)
+                   ON DUPLICATE KEY UPDATE isin=:i, categorie=:c, date_achat=:da, commentaire=:co"""
+            ), {"u": utilisateur, "t": ticker, "i": isin, "c": categorie, "da": date_achat, "co": commentaire})
         return True
     except Exception as e:
         return str(e)
@@ -279,14 +281,11 @@ def sauvegarder_isin_mysql(utilisateur: str, ticker: str, isin: str, categorie: 
 def supprimer_isin_mysql(utilisateur: str, ticker: str) -> bool:
     """Supprimer un ISIN de MySQL pour un utilisateur."""
     try:
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM isin_utilisateurs WHERE utilisateur = %s AND ticker = %s",
-                (utilisateur, ticker)
+        with _get_engine().begin() as conn:
+            conn.execute(
+                text("DELETE FROM isin_utilisateurs WHERE utilisateur = :u AND ticker = :t"),
+                {"u": utilisateur, "t": ticker}
             )
-        conn.commit()
-        conn.close()
         return True
     except Exception:
         return False
@@ -295,11 +294,11 @@ def supprimer_isin_mysql(utilisateur: str, ticker: str) -> bool:
 def verifier_mdp(utilisateur: str, mdp: str) -> bool:
     """Vérifier le mot de passe d'un utilisateur. Retourne True si correct."""
     try:
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute("SELECT password_hash FROM utilisateurs_auth WHERE utilisateur = %s", (utilisateur,))
-            row = cur.fetchone()
-        conn.close()
+        with _get_engine().connect() as conn:
+            row = conn.execute(
+                text("SELECT password_hash FROM utilisateurs_auth WHERE utilisateur = :u"),
+                {"u": utilisateur}
+            ).fetchone()
         if not row:
             return False
         return bcrypt.checkpw(mdp.encode("utf-8"), row[0].encode("utf-8"))
@@ -310,11 +309,11 @@ def verifier_mdp(utilisateur: str, mdp: str) -> bool:
 def get_role(utilisateur: str) -> str:
     """Retourne le rôle de l'utilisateur ('admin', 'user') ou '' si inexistant."""
     try:
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute("SELECT role FROM utilisateurs_auth WHERE utilisateur = %s", (utilisateur,))
-            row = cur.fetchone()
-        conn.close()
+        with _get_engine().connect() as conn:
+            row = conn.execute(
+                text("SELECT role FROM utilisateurs_auth WHERE utilisateur = :u"),
+                {"u": utilisateur}
+            ).fetchone()
         return row[0] if row else ""
     except Exception:
         return ""
@@ -323,12 +322,11 @@ def get_role(utilisateur: str) -> str:
 def charger_utilisateurs_auth() -> list:
     """Retourne la liste de tous les utilisateurs enregistrés."""
     try:
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute("SELECT utilisateur, role FROM utilisateurs_auth ORDER BY utilisateur")
-            rows = cur.fetchall()
-        conn.close()
-        return rows
+        with _get_engine().connect() as conn:
+            rows = conn.execute(
+                text("SELECT utilisateur, role FROM utilisateurs_auth ORDER BY utilisateur")
+            ).fetchall()
+        return [(r[0], r[1]) for r in rows]
     except Exception:
         return []
 
@@ -337,15 +335,12 @@ def set_mdp(utilisateur: str, nouveau_mdp: str) -> bool:
     """Définir ou réinitialiser le mot de passe d'un utilisateur."""
     try:
         h = bcrypt.hashpw(nouveau_mdp.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO utilisateurs_auth (utilisateur, password_hash) VALUES (%s, %s) "
-                "ON DUPLICATE KEY UPDATE password_hash = %s",
-                (utilisateur, h, h)
+        with _get_engine().begin() as conn:
+            conn.execute(
+                text("INSERT INTO utilisateurs_auth (utilisateur, password_hash) VALUES (:u, :h) "
+                     "ON DUPLICATE KEY UPDATE password_hash = :h"),
+                {"u": utilisateur, "h": h}
             )
-        conn.commit()
-        conn.close()
         return True
     except Exception:
         return False
@@ -355,14 +350,11 @@ def creer_utilisateur(utilisateur: str, mdp: str, role: str = "user") -> bool:
     """Créer un nouvel utilisateur avec son mot de passe hashé."""
     try:
         h = bcrypt.hashpw(mdp.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO utilisateurs_auth (utilisateur, password_hash, role) VALUES (%s, %s, %s)",
-                (utilisateur, h, role)
+        with _get_engine().begin() as conn:
+            conn.execute(
+                text("INSERT INTO utilisateurs_auth (utilisateur, password_hash, role) VALUES (:u, :h, :r)"),
+                {"u": utilisateur, "h": h, "r": role}
             )
-        conn.commit()
-        conn.close()
         return True
     except Exception:
         return False
@@ -371,11 +363,11 @@ def creer_utilisateur(utilisateur: str, mdp: str, role: str = "user") -> bool:
 def supprimer_utilisateur(utilisateur: str) -> bool:
     """Supprimer un utilisateur de la table auth."""
     try:
-        conn = get_connexion_mysql()
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM utilisateurs_auth WHERE utilisateur = %s", (utilisateur,))
-        conn.commit()
-        conn.close()
+        with _get_engine().begin() as conn:
+            conn.execute(
+                text("DELETE FROM utilisateurs_auth WHERE utilisateur = :u"),
+                {"u": utilisateur}
+            )
         return True
     except Exception:
         return False
