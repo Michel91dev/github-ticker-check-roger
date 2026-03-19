@@ -197,7 +197,7 @@ def _get_engine():
     cfg = _get_db_config()
     url = (
         f"mysql+pymysql://{cfg['user']}:{cfg['password']}"
-        f"@{cfg['host']}:{cfg['port']}/{cfg['database']}?charset=utf8mb4"
+        f"@{cfg['host']}:{cfg['port']}/{cfg['database']}?charset=utf8mb4&use_unicode=1"
     )
     return create_engine(url, poolclass=QueuePool, pool_size=5, max_overflow=10, pool_pre_ping=True)
 
@@ -749,7 +749,20 @@ def main():
     if st.session_state["selected_ticker_key"] not in actions_disponibles:
         st.session_state["selected_ticker_key"] = liste_tickers[0] if liste_tickers else None
 
-    # Afficher la liste par catégorie avec bouton sélection + poubelle (style v2.5.23)
+    # CSS injecté en avance pour colorer le bouton du ticker sélectionné
+    ticker_sel = st.session_state.get("selected_ticker_key", "")
+    signal_sel = signaux_cache.get(ticker_sel, "Neutre")
+    couleur_sel = {"Acheter": "#2E7D32", "Vendre": "#C62828", "Attente": "#E65100", "Neutre": "#555"}.get(signal_sel, "#555")
+    safe_sel = ticker_sel.replace("^", "").replace(".", "-")
+    st.sidebar.markdown(
+        f'<style>[data-testid="stSidebarContent"] [data-testid="stButton"] button[data-testid="baseButton-secondary"][id*="sel_{safe_sel}"],'
+        f'[data-testid="stSidebarContent"] [data-testid="element-container"]:has(button[key="sel_{ticker_sel}"]) button'
+        f'{{ background-color: {couleur_sel} !important; color: white !important;'
+        f'border: 2px solid #C62828 !important; font-weight: bold !important; }}</style>',
+        unsafe_allow_html=True
+    )
+
+    # Afficher la liste par catégorie avec bouton sélection + poubelle
     for categorie in ["PEA", "TITRES"]:
         if categorie not in options_par_categorie:
             continue
@@ -783,15 +796,6 @@ def main():
 
             col_sel, col_del = st.sidebar.columns([9, 1])
             with col_sel:
-                # CSS ciblé par aria-label (= label exact du bouton)
-                label_css = label.replace('"', '\\"').replace("'", "\\'")
-                if est_selectionne:
-                    st.markdown(
-                        f'<style>[data-testid="stSidebarContent"] button[aria-label="{label_css}"]'
-                        f'{{ background-color: {couleur_bg} !important; color: white !important;'
-                        f'border: 2px solid #C62828 !important; font-weight: bold !important; }}</style>',
-                        unsafe_allow_html=True
-                    )
                 if st.button(label, key=f"sel_{ticker_key}", help=tooltip or None, use_container_width=True):
                     st.session_state["selected_ticker_key"] = ticker_key
                     st.rerun()
