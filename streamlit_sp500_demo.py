@@ -15,6 +15,9 @@ import re
 import requests
 import pymysql
 import bcrypt
+import hmac
+import hashlib
+import secrets
 
 # Lire la version depuis le fichier
 def get_version():
@@ -378,10 +381,47 @@ def supprimer_utilisateur(utilisateur: str) -> bool:
         return False
 
 
+# Clé secrète pour signer les tokens (fixe par app, non exposée)
+_TOKEN_SECRET = "TCR-2025-secret-michel"  # noqa: S105
+
+
+def _creer_token(utilisateur: str, role: str) -> str:
+    """Crée un token signé HMAC : utilisateur|role|signature."""
+    payload = f"{utilisateur}|{role}"
+    sig = hmac.new(_TOKEN_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:16]
+    return f"{payload}|{sig}"
+
+
+def _verifier_token(token: str):
+    """Vérifie le token et retourne (utilisateur, role) ou (None, None)."""
+    try:
+        parts = token.split("|")
+        if len(parts) != 3:
+            return None, None
+        utilisateur, role, sig = parts
+        payload = f"{utilisateur}|{role}"
+        sig_attendu = hmac.new(_TOKEN_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:16]
+        if hmac.compare_digest(sig, sig_attendu):
+            return utilisateur, role
+    except Exception:
+        pass
+    return None, None
+
+
 def afficher_login(version=""):
     """Afficher l'écran de login. Retourne False si non authentifié."""
     if st.session_state.get("authentifie"):
         return True
+
+    # Vérifier le token dans l'URL (persistance entre sessions)
+    token = st.query_params.get("t", "")
+    if token:
+        utilisateur, role = _verifier_token(token)
+        if utilisateur and role:
+            st.session_state["authentifie"] = True
+            st.session_state["utilisateur_connecte"] = utilisateur
+            st.session_state["role_connecte"] = role
+            return True
 
     st.markdown(
         f'<h2 style="text-align:center;margin-top:60px;">📊 Ticker-Check-Roger</h2>'
@@ -399,6 +439,8 @@ def afficher_login(version=""):
                     st.session_state["authentifie"] = True
                     st.session_state["utilisateur_connecte"] = nom
                     st.session_state["role_connecte"] = role
+                    # Stocker le token dans l'URL
+                    st.query_params["t"] = _creer_token(nom, role)
                     st.rerun()
                 else:
                     st.error("Identifiants incorrects.")
@@ -498,6 +540,7 @@ def main():
         if st.button("❌", help="Se déconnecter", use_container_width=True):
             for k in ["authentifie", "utilisateur_connecte", "role_connecte", "profil_vue"]:
                 st.session_state.pop(k, None)
+            st.query_params.clear()
             st.rerun()
 
     # ISIN des actions pour affichage optionnel
