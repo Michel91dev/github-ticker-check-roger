@@ -39,3 +39,6 @@ Thumbs.db
 
 # Streamlit
 .streamlit/
+
+# Secrets locaux (VPS)
+.env
