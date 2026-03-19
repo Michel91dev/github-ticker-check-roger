@@ -20,6 +20,7 @@ import hashlib
 import secrets
 import os
 from dotenv import load_dotenv
+import streamlit.components.v1 as components
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import QueuePool
 
@@ -749,19 +750,9 @@ def main():
     if st.session_state["selected_ticker_key"] not in actions_disponibles:
         st.session_state["selected_ticker_key"] = liste_tickers[0] if liste_tickers else None
 
-    # Traitement sélection via query param ticker_select (HTML links)
-    qs_ticker = st.query_params.get("ticker_select", "")
-    if qs_ticker and qs_ticker in actions_disponibles:
-        st.session_state["selected_ticker_key"] = qs_ticker
-        # Conserver le token de session, supprimer uniquement ticker_select
-        token_courant = st.query_params.get("t", "")
-        st.query_params.clear()
-        if token_courant:
-            st.query_params["t"] = token_courant
-
     couleur_signal = {"Acheter": "#2E7D32", "Vendre": "#C62828", "Attente": "#E65100", "Neutre": "#444"}
 
-    # Afficher la liste par catégorie — HTML pur pour contrôle total du style
+    # Afficher la liste par catégorie avec st.button (pas de reload)
     for categorie in ["PEA", "TITRES"]:
         if categorie not in options_par_categorie:
             continue
@@ -776,49 +767,26 @@ def main():
             nom_pur = actions_disponibles[ticker_key].split(" ", 1)[-1]
             emoji_feu = {"Acheter": "🟢", "Vendre": "🔴", "Attente": "🟡", "Neutre": "⚪"}.get(signal, "⚪")
             est_selectionne = (st.session_state["selected_ticker_key"] == ticker_key)
-            couleur_bg = couleur_signal.get(signal, "#444")
 
             meta = meta_tickers.get(ticker_key, (None, None))
             date_str = str(meta[0]) if meta[0] else ""
             comment_str = meta[1] if meta[1] else ""
-            tooltip_html = ""
+            tooltip = ""
             if date_str:
-                tooltip_html += f"📅 {date_str}"
+                tooltip += f"📅 {date_str}"
             if comment_str:
-                tooltip_html += (" — " if tooltip_html else "") + f"💬 {comment_str}"
+                tooltip += (" — " if tooltip else "") + f"💬 {comment_str}"
 
             isin_txt = ""
             if afficher_isin:
                 isin_txt = " ( )" if isin_val == "ISIN inconnu" else f" ({isin_val})"
+            label = f"{emoji_feu} {nom_pur} → {signal}{isin_txt}"
 
-            token_courant = st.query_params.get("t", "")
-            url_select = f"?t={token_courant}&ticker_select={ticker_key}" if token_courant else f"?ticker_select={ticker_key}"
-
-            if est_selectionne:
-                style_ligne = (
-                    f'background:{couleur_bg};color:white;border:2px solid #C62828;'
-                    f'border-radius:6px;padding:5px 8px;margin-bottom:3px;'
-                    f'display:flex;align-items:center;gap:6px;font-weight:bold;font-size:0.85em;'
-                )
-                style_txt = 'color:white;text-decoration:none;flex:1;'
-            else:
-                style_ligne = (
-                    f'background:#f8f8f8;border:1px solid #ddd;'
-                    f'border-radius:6px;padding:5px 8px;margin-bottom:3px;'
-                    f'display:flex;align-items:center;gap:6px;font-size:0.85em;'
-                )
-                style_txt = 'color:#333;text-decoration:none;flex:1;'
-
-            html_ligne = (
-                f'<div style="{style_ligne}" title="{tooltip_html}">'
-                f'<span style="font-size:1.1em;line-height:1;">{emoji_feu}</span>'
-                f'<a href="{url_select}" target="_self" style="{style_txt}">'
-                f'{nom_pur} → {signal}{isin_txt}</a>'
-                f'</div>'
-            )
-            col_html, col_del = st.sidebar.columns([9, 1])
-            with col_html:
-                st.markdown(html_ligne, unsafe_allow_html=True)
+            col_sel, col_del = st.sidebar.columns([9, 1])
+            with col_sel:
+                if st.button(label, key=f"sel_{ticker_key}", help=tooltip or None, use_container_width=True):
+                    st.session_state["selected_ticker_key"] = ticker_key
+                    st.rerun()
             with col_del:
                 if st.button("🗑️", key=f"del_{ticker_key}", help=f"Supprimer {ticker_key}", use_container_width=True):
                     if "isin_custom" not in st.session_state:
@@ -826,6 +794,37 @@ def main():
                     st.session_state["isin_custom"].pop(ticker_key, None)
                     isin_actions[ticker_key] = "ISIN inconnu"
                     st.rerun()
+
+    # JS injecté côté DOM pour colorer le bouton sélectionné (aucun reload)
+    ticker_sel = st.session_state.get("selected_ticker_key", "")
+    signal_sel = signaux_cache.get(ticker_sel, "Neutre")
+    couleur_sel = couleur_signal.get(signal_sel, "#444")
+    nom_sel = actions_disponibles.get(ticker_sel, "")
+    if nom_sel:
+        nom_sel_pur = nom_sel.split(" ", 1)[-1]
+        components.html(
+            f"""<script>
+            (function() {{
+                function styliserBouton() {{
+                    var sidebar = window.parent.document.querySelector('[data-testid="stSidebarContent"]');
+                    if (!sidebar) return;
+                    var boutons = sidebar.querySelectorAll('button');
+                    boutons.forEach(function(btn) {{
+                        var txt = btn.innerText || '';
+                        if (txt.includes({repr(nom_sel_pur)})) {{
+                            btn.style.backgroundColor = '{couleur_sel}';
+                            btn.style.color = 'white';
+                            btn.style.border = '2px solid #C62828';
+                            btn.style.fontWeight = 'bold';
+                        }}
+                    }});
+                }}
+                setTimeout(styliserBouton, 100);
+                setTimeout(styliserBouton, 400);
+            }})();
+            </script>""",
+            height=0
+        )
 
     selected_ticker = st.session_state.get("selected_ticker_key") or (liste_tickers[0] if liste_tickers else None)
 
