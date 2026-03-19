@@ -198,9 +198,16 @@ def _get_engine():
     cfg = _get_db_config()
     url = (
         f"mysql+pymysql://{cfg['user']}:{cfg['password']}"
-        f"@{cfg['host']}:{cfg['port']}/{cfg['database']}?charset=utf8mb4&use_unicode=1"
+        f"@{cfg['host']}:{cfg['port']}/{cfg['database']}?charset=utf8mb4"
     )
-    return create_engine(url, poolclass=QueuePool, pool_size=5, max_overflow=10, pool_pre_ping=True)
+    return create_engine(
+        url,
+        poolclass=QueuePool,
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True,
+        connect_args={"charset": "utf8mb4", "use_unicode": True},
+    )
 
 
 def charger_isin_mysql(utilisateur: str) -> dict:
@@ -486,22 +493,35 @@ def main():
     [data-testid="stSidebarContent"] .stButton > button {
         text-align: left !important;
         justify-content: flex-start !important;
-        padding-left: 6px !important;
+        padding-left: 8px !important;
         display: flex !important;
         align-items: center !important;
+        white-space: normal !important;
+        height: auto !important;
+        min-height: 36px !important;
     }
-    [data-testid="stSidebarContent"] .stButton > button p {
+    [data-testid="stSidebarContent"] .stButton > button p,
+    [data-testid="stSidebarContent"] .stButton > button div {
         text-align: left !important;
         width: 100% !important;
         margin: 0 !important;
-    }
-    [data-testid="stSidebarContent"] button[kind="secondary"][data-testid="baseButton-secondary"] {
-        padding: 2px 4px !important;
-        font-size: 0.75em !important;
-        min-height: 0 !important;
+        white-space: normal !important;
     }
     [data-testid="stSidebarContent"] [data-testid="stHorizontalBlock"] {
-        gap: 4px !important;
+        gap: 2px !important;
+        align-items: stretch !important;
+    }
+    /* Colonne poubelle : largeur fixe réduite */
+    [data-testid="stSidebarContent"] [data-testid="stHorizontalBlock"] > div:last-child {
+        flex: 0 0 36px !important;
+        min-width: 36px !important;
+        max-width: 36px !important;
+    }
+    [data-testid="stSidebarContent"] [data-testid="stHorizontalBlock"] > div:last-child button {
+        padding: 2px !important;
+        font-size: 1em !important;
+        min-height: 36px !important;
+        width: 36px !important;
     }
     /* Boutons PEA(bleu) CTO(vert) Annuler(rouge) — ciblage par aria-label */
     button[aria-label="🏛️ PEA"] {
