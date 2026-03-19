@@ -373,31 +373,57 @@ def supprimer_utilisateur(utilisateur: str) -> bool:
         return False
 
 
-# Clé secrète pour signer les tokens (fixe par app, non exposée)
-_TOKEN_SECRET = "TCR-2025-secret-michel"  # noqa: S105
+_DUREE_SESSION_JOURS = 30
 
 
-def _creer_token(utilisateur: str, role: str) -> str:
-    """Crée un token signé HMAC : utilisateur|role|signature."""
-    payload = f"{utilisateur}|{role}"
-    sig = hmac.new(_TOKEN_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:16]
-    return f"{payload}|{sig}"
-
-
-def _verifier_token(token: str):
-    """Vérifie le token et retourne (utilisateur, role) ou (None, None)."""
+def _creer_session(utilisateur: str, role: str) -> str:
+    """Crée une session en base MySQL et retourne le token UUID."""
+    token = secrets.token_hex(32)
+    expire = datetime.now() + timedelta(days=_DUREE_SESSION_JOURS)
     try:
-        parts = token.split("|")
-        if len(parts) != 3:
-            return None, None
-        utilisateur, role, sig = parts
-        payload = f"{utilisateur}|{role}"
-        sig_attendu = hmac.new(_TOKEN_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:16]
-        if hmac.compare_digest(sig, sig_attendu):
-            return utilisateur, role
+        with _get_engine().begin() as conn:
+            conn.execute(
+                text("INSERT INTO sessions (token, utilisateur, role, expire_le) VALUES (:t, :u, :r, :e)"),
+                {"t": token, "u": utilisateur, "r": role, "e": expire}
+            )
+        return token
+    except Exception:
+        return ""
+
+
+def _verifier_session(token: str):
+    """Vérifie le token en base et retourne (utilisateur, role) ou (None, None)."""
+    if not token:
+        return None, None
+    try:
+        with _get_engine().connect() as conn:
+            row = conn.execute(
+                text("SELECT utilisateur, role FROM sessions WHERE token = :t AND expire_le > NOW()"),
+                {"t": token}
+            ).fetchone()
+        if row:
+            return row[0], row[1]
     except Exception:
         pass
     return None, None
+
+
+def _supprimer_session(token: str) -> None:
+    """Supprime une session en base (déconnexion)."""
+    try:
+        with _get_engine().begin() as conn:
+            conn.execute(text("DELETE FROM sessions WHERE token = :t"), {"t": token})
+    except Exception:
+        pass
+
+
+def _nettoyer_sessions_expirees() -> None:
+    """Purge les sessions expirées (appelé périodiquement)."""
+    try:
+        with _get_engine().begin() as conn:
+            conn.execute(text("DELETE FROM sessions WHERE expire_le < NOW()"))
+    except Exception:
+        pass
 
 
 def afficher_login(version=""):
@@ -405,15 +431,19 @@ def afficher_login(version=""):
     if st.session_state.get("authentifie"):
         return True
 
-    # Vérifier le token dans l'URL (persistance entre sessions)
+    # Vérifier le token dans l'URL (persistance 30 jours via sessions MySQL)
     token = st.query_params.get("t", "")
     if token:
-        utilisateur, role = _verifier_token(token)
+        utilisateur, role = _verifier_session(token)
         if utilisateur and role:
             st.session_state["authentifie"] = True
             st.session_state["utilisateur_connecte"] = utilisateur
             st.session_state["role_connecte"] = role
+            st.session_state["session_token"] = token
             return True
+        else:
+            # Token invalide ou expiré : nettoyer l'URL
+            st.query_params.clear()
 
     st.markdown(
         f'<h2 style="text-align:center;margin-top:60px;">📊 Ticker-Check-Roger</h2>'
@@ -428,11 +458,12 @@ def afficher_login(version=""):
             if st.form_submit_button("Connexion", use_container_width=True):
                 if verifier_mdp(nom, mdp):
                     role = get_role(nom)
+                    token = _creer_session(nom, role)
                     st.session_state["authentifie"] = True
                     st.session_state["utilisateur_connecte"] = nom
                     st.session_state["role_connecte"] = role
-                    # Stocker le token dans l'URL
-                    st.query_params["t"] = _creer_token(nom, role)
+                    st.session_state["session_token"] = token
+                    st.query_params["t"] = token
                     st.rerun()
                 else:
                     st.error("Identifiants incorrects.")
@@ -530,7 +561,8 @@ def main():
         )
     with col_deco:
         if st.button("❌", help="Se déconnecter", use_container_width=True):
-            for k in ["authentifie", "utilisateur_connecte", "role_connecte", "profil_vue"]:
+            _supprimer_session(st.session_state.get("session_token", ""))
+            for k in ["authentifie", "utilisateur_connecte", "role_connecte", "profil_vue", "session_token"]:
                 st.session_state.pop(k, None)
             st.query_params.clear()
             st.rerun()
