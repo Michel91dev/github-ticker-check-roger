@@ -758,13 +758,14 @@ def main():
             f'margin:10px 0 8px 0;border-bottom:1px solid #ccc;padding-bottom:3px;">📊 {categorie}</div>',
             unsafe_allow_html=True
         )
-        couleur_signal = {"Acheter": "#2E7D32", "Vendre": "#C62828", "Attente": "#E65100", "Neutre": "#666"}
+        couleur_signal = {"Acheter": "#2E7D32", "Vendre": "#C62828", "Attente": "#E65100", "Neutre": "#555"}
         for ticker_key, option_text in options_par_categorie[categorie]:
             isin_val = isin_actions.get(ticker_key, "ISIN inconnu")
             signal = signaux_cache.get(ticker_key, "Neutre")
             nom_pur = actions_disponibles[ticker_key].split(" ", 1)[-1]
             emoji_feu = {"Acheter": "🟢", "Vendre": "🔴", "Attente": "🟡", "Neutre": "⚪"}.get(signal, "⚪")
             est_selectionne = (st.session_state["selected_ticker_key"] == ticker_key)
+            couleur_bg = couleur_signal.get(signal, "#555")
 
             meta = meta_tickers.get(ticker_key, (None, None))
             date_str = str(meta[0]) if meta[0] else ""
@@ -775,31 +776,25 @@ def main():
             if comment_str:
                 tooltip += (" — " if tooltip else "") + f"💬 {comment_str}"
 
-            col_boule, col_sel, col_del = st.sidebar.columns([1, 8, 1])
-            with col_boule:
-                if est_selectionne:
-                    st.markdown(
-                        f'<div style="border:4px solid #C62828;border-radius:50%;'
-                        f'width:28px;height:28px;display:flex;align-items:center;'
-                        f'justify-content:center;font-size:1.1em;margin-top:3px;margin-right:-6px;">{emoji_feu}</div>',
-                        unsafe_allow_html=True
-                    )
-                else:
-                    st.markdown(
-                        f'<div style="font-size:1.1em;margin-top:4px;padding-left:2px;">{emoji_feu}</div>',
-                        unsafe_allow_html=True
-                    )
+            isin_txt = ""
+            if afficher_isin:
+                isin_txt = " ( )" if isin_val == "ISIN inconnu" else f" ({isin_val})"
+            label = f"{emoji_feu} {nom_pur} → {signal}{isin_txt}"
+
+            col_sel, col_del = st.sidebar.columns([9, 1])
             with col_sel:
-                isin_txt = ""
-                if afficher_isin:
-                    isin_txt = " ( )" if isin_val == "ISIN inconnu" else f" ({isin_val})"
                 if est_selectionne:
-                    label = f"▶▶▶ {nom_pur} → {signal}{isin_txt} ◄◄◄"
+                    # Fond coloré + bordure rouge pour le ticker sélectionné
+                    st.markdown(
+                        f'<div style="background:{couleur_bg};color:white;border:2px solid #C62828;'
+                        f'border-radius:6px;padding:4px 8px;font-size:0.85em;font-weight:bold;'
+                        f'cursor:pointer;margin-bottom:2px;">{label}</div>',
+                        unsafe_allow_html=True
+                    )
                 else:
-                    label = f"{nom_pur} → {signal}{isin_txt}"
-                if st.button(label, key=f"sel_{ticker_key}", help=tooltip or None, use_container_width=True):
-                    st.session_state["selected_ticker_key"] = ticker_key
-                    st.rerun()
+                    if st.button(label, key=f"sel_{ticker_key}", help=tooltip or None, use_container_width=True):
+                        st.session_state["selected_ticker_key"] = ticker_key
+                        st.rerun()
             with col_del:
                 if st.button("🗑️", key=f"del_{ticker_key}", help=f"Supprimer {ticker_key}", use_container_width=True):
                     if "isin_custom" not in st.session_state:
