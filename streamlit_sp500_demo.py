@@ -699,7 +699,16 @@ def main():
             emoji_feu = {"Acheter": "🟢", "Vendre": "🔴", "Attente": "🟡", "Neutre": "⚪"}.get(signal, "⚪")
             est_selectionne = (st.session_state["selected_ticker_key"] == ticker_key)
 
-            col_boule, col_sel, col_info, col_del = st.sidebar.columns([1, 7, 1, 1])
+            meta = meta_tickers.get(ticker_key, (None, None))
+            date_str = str(meta[0]) if meta[0] else ""
+            comment_str = meta[1] if meta[1] else ""
+            tooltip = ""
+            if date_str:
+                tooltip += f"📅 {date_str}"
+            if comment_str:
+                tooltip += (" — " if tooltip else "") + f"💬 {comment_str}"
+
+            col_boule, col_sel, col_del = st.sidebar.columns([1, 8, 1])
             with col_boule:
                 if est_selectionne:
                     st.markdown(
@@ -721,21 +730,9 @@ def main():
                     label = f"▶▶▶ {nom_pur} → {signal}{isin_txt} ◄◄◄"
                 else:
                     label = f"{nom_pur} → {signal}{isin_txt}"
-                if st.button(label, key=f"sel_{ticker_key}", use_container_width=True):
+                if st.button(label, key=f"sel_{ticker_key}", help=tooltip or None, use_container_width=True):
                     st.session_state["selected_ticker_key"] = ticker_key
                     st.rerun()
-            with col_info:
-                meta = meta_tickers.get(ticker_key, (None, None))
-                date_str = str(meta[0]) if meta[0] else ""
-                comment_str = meta[1] if meta[1] else ""
-                tooltip = ""
-                if date_str:
-                    tooltip += f"📅 {date_str}"
-                if comment_str:
-                    tooltip += (" — " if tooltip else "") + f"💬 {comment_str}"
-                if not tooltip:
-                    tooltip = "Pas de note"
-                st.button("ℹ️", key=f"info_{ticker_key}", help=tooltip, use_container_width=True)
             with col_del:
                 if st.button("🗑️", key=f"del_{ticker_key}", help=f"Supprimer {ticker_key}", use_container_width=True):
                     if "isin_custom" not in st.session_state:
