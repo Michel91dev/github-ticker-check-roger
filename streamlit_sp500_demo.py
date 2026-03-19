@@ -749,56 +749,76 @@ def main():
     if st.session_state["selected_ticker_key"] not in actions_disponibles:
         st.session_state["selected_ticker_key"] = liste_tickers[0] if liste_tickers else None
 
-    # CSS injecté en avance pour colorer le bouton du ticker sélectionné
-    ticker_sel = st.session_state.get("selected_ticker_key", "")
-    signal_sel = signaux_cache.get(ticker_sel, "Neutre")
-    couleur_sel = {"Acheter": "#2E7D32", "Vendre": "#C62828", "Attente": "#E65100", "Neutre": "#555"}.get(signal_sel, "#555")
-    safe_sel = ticker_sel.replace("^", "").replace(".", "-")
-    st.sidebar.markdown(
-        f'<style>[data-testid="stSidebarContent"] [data-testid="stButton"] button[data-testid="baseButton-secondary"][id*="sel_{safe_sel}"],'
-        f'[data-testid="stSidebarContent"] [data-testid="element-container"]:has(button[key="sel_{ticker_sel}"]) button'
-        f'{{ background-color: {couleur_sel} !important; color: white !important;'
-        f'border: 2px solid #C62828 !important; font-weight: bold !important; }}</style>',
-        unsafe_allow_html=True
-    )
+    # Traitement sélection via query param ticker_select (HTML links)
+    qs_ticker = st.query_params.get("ticker_select", "")
+    if qs_ticker and qs_ticker in actions_disponibles:
+        st.session_state["selected_ticker_key"] = qs_ticker
+        # Conserver le token de session, supprimer uniquement ticker_select
+        token_courant = st.query_params.get("t", "")
+        st.query_params.clear()
+        if token_courant:
+            st.query_params["t"] = token_courant
 
-    # Afficher la liste par catégorie avec bouton sélection + poubelle
+    couleur_signal = {"Acheter": "#2E7D32", "Vendre": "#C62828", "Attente": "#E65100", "Neutre": "#444"}
+
+    # Afficher la liste par catégorie — HTML pur pour contrôle total du style
     for categorie in ["PEA", "TITRES"]:
         if categorie not in options_par_categorie:
             continue
         st.sidebar.markdown(
             f'<div style="font-weight:bold;color:#888;font-size:0.8em;'
-            f'margin:10px 0 8px 0;border-bottom:1px solid #ccc;padding-bottom:3px;">📊 {categorie}</div>',
+            f'margin:10px 0 4px 0;border-bottom:1px solid #ccc;padding-bottom:3px;">📊 {categorie}</div>',
             unsafe_allow_html=True
         )
-        couleur_signal = {"Acheter": "#2E7D32", "Vendre": "#C62828", "Attente": "#E65100", "Neutre": "#555"}
         for ticker_key, option_text in options_par_categorie[categorie]:
             isin_val = isin_actions.get(ticker_key, "ISIN inconnu")
             signal = signaux_cache.get(ticker_key, "Neutre")
             nom_pur = actions_disponibles[ticker_key].split(" ", 1)[-1]
             emoji_feu = {"Acheter": "🟢", "Vendre": "🔴", "Attente": "🟡", "Neutre": "⚪"}.get(signal, "⚪")
             est_selectionne = (st.session_state["selected_ticker_key"] == ticker_key)
-            couleur_bg = couleur_signal.get(signal, "#555")
+            couleur_bg = couleur_signal.get(signal, "#444")
 
             meta = meta_tickers.get(ticker_key, (None, None))
             date_str = str(meta[0]) if meta[0] else ""
             comment_str = meta[1] if meta[1] else ""
-            tooltip = ""
+            tooltip_html = ""
             if date_str:
-                tooltip += f"📅 {date_str}"
+                tooltip_html += f"📅 {date_str}"
             if comment_str:
-                tooltip += (" — " if tooltip else "") + f"💬 {comment_str}"
+                tooltip_html += (" — " if tooltip_html else "") + f"💬 {comment_str}"
 
             isin_txt = ""
             if afficher_isin:
                 isin_txt = " ( )" if isin_val == "ISIN inconnu" else f" ({isin_val})"
-            label = f"{emoji_feu} {nom_pur} → {signal}{isin_txt}"
 
-            col_sel, col_del = st.sidebar.columns([9, 1])
-            with col_sel:
-                if st.button(label, key=f"sel_{ticker_key}", help=tooltip or None, use_container_width=True):
-                    st.session_state["selected_ticker_key"] = ticker_key
-                    st.rerun()
+            token_courant = st.query_params.get("t", "")
+            url_select = f"?t={token_courant}&ticker_select={ticker_key}" if token_courant else f"?ticker_select={ticker_key}"
+
+            if est_selectionne:
+                style_ligne = (
+                    f'background:{couleur_bg};color:white;border:2px solid #C62828;'
+                    f'border-radius:6px;padding:5px 8px;margin-bottom:3px;'
+                    f'display:flex;align-items:center;gap:6px;font-weight:bold;font-size:0.85em;'
+                )
+                style_txt = 'color:white;text-decoration:none;flex:1;'
+            else:
+                style_ligne = (
+                    f'background:#f8f8f8;border:1px solid #ddd;'
+                    f'border-radius:6px;padding:5px 8px;margin-bottom:3px;'
+                    f'display:flex;align-items:center;gap:6px;font-size:0.85em;'
+                )
+                style_txt = 'color:#333;text-decoration:none;flex:1;'
+
+            html_ligne = (
+                f'<div style="{style_ligne}" title="{tooltip_html}">'
+                f'<span style="font-size:1.1em;line-height:1;">{emoji_feu}</span>'
+                f'<a href="{url_select}" target="_self" style="{style_txt}">'
+                f'{nom_pur} → {signal}{isin_txt}</a>'
+                f'</div>'
+            )
+            col_html, col_del = st.sidebar.columns([9, 1])
+            with col_html:
+                st.markdown(html_ligne, unsafe_allow_html=True)
             with col_del:
                 if st.button("🗑️", key=f"del_{ticker_key}", help=f"Supprimer {ticker_key}", use_container_width=True):
                     if "isin_custom" not in st.session_state:
