@@ -783,18 +783,18 @@ def main():
 
             col_sel, col_del = st.sidebar.columns([9, 1])
             with col_sel:
+                # CSS ciblé par aria-label (= label exact du bouton)
+                label_css = label.replace('"', '\\"').replace("'", "\\'")
                 if est_selectionne:
-                    # Fond coloré + bordure rouge pour le ticker sélectionné
                     st.markdown(
-                        f'<div style="background:{couleur_bg};color:white;border:2px solid #C62828;'
-                        f'border-radius:6px;padding:4px 8px;font-size:0.85em;font-weight:bold;'
-                        f'cursor:pointer;margin-bottom:2px;">{label}</div>',
+                        f'<style>[data-testid="stSidebarContent"] button[aria-label="{label_css}"]'
+                        f'{{ background-color: {couleur_bg} !important; color: white !important;'
+                        f'border: 2px solid #C62828 !important; font-weight: bold !important; }}</style>',
                         unsafe_allow_html=True
                     )
-                else:
-                    if st.button(label, key=f"sel_{ticker_key}", help=tooltip or None, use_container_width=True):
-                        st.session_state["selected_ticker_key"] = ticker_key
-                        st.rerun()
+                if st.button(label, key=f"sel_{ticker_key}", help=tooltip or None, use_container_width=True):
+                    st.session_state["selected_ticker_key"] = ticker_key
+                    st.rerun()
             with col_del:
                 if st.button("🗑️", key=f"del_{ticker_key}", help=f"Supprimer {ticker_key}", use_container_width=True):
                     if "isin_custom" not in st.session_state:
