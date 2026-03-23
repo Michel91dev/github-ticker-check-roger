@@ -173,22 +173,13 @@ def detecter_croisements_ma(data):
     return golden_crosses, death_crosses
 
 def _get_db_config() -> dict:
-    """Lit la config MySQL depuis .env (VPS) ou st.secrets (Streamlit Cloud)."""
-    if os.getenv("MYSQL_HOST"):
-        return {
-            "host": os.getenv("MYSQL_HOST"),
-            "port": int(os.getenv("MYSQL_PORT", 3306)),
-            "database": os.getenv("MYSQL_DATABASE"),
-            "user": os.getenv("MYSQL_USER"),
-            "password": os.getenv("MYSQL_PASSWORD"),
-        }
-    cfg = st.secrets["mysql"]
+    """Lit la config MySQL depuis .env (VPS uniquement)."""
     return {
-        "host": cfg["host"],
-        "port": int(cfg["port"]),
-        "database": cfg["database"],
-        "user": cfg["user"],
-        "password": cfg["password"],
+        "host": os.getenv("MYSQL_HOST", "localhost"),
+        "port": int(os.getenv("MYSQL_PORT", "3306")),
+        "database": os.getenv("MYSQL_DATABASE", "bourse_isin"),
+        "user": os.getenv("MYSQL_USER", "bourse_user"),
+        "password": os.getenv("MYSQL_PASSWORD", ""),
     }
 
 
