@@ -501,11 +501,20 @@ def main():
         min-height: 36px !important;
     }
     [data-testid="stSidebarContent"] .stButton > button p,
-    [data-testid="stSidebarContent"] .stButton > button div {
+    [data-testid="stSidebarContent"] .stButton > button div,
+    [data-testid="stSidebarContent"] .stButton > button span {
         text-align: left !important;
         width: 100% !important;
         margin: 0 !important;
         white-space: normal !important;
+        display: block !important;
+    }
+    /* Forcer l'alignement du contenu texte dans les boutons */
+    [data-testid="stSidebarContent"] .stButton > button > div {
+        display: flex !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        width: 100% !important;
     }
     [data-testid="stSidebarContent"] [data-testid="stHorizontalBlock"] {
         gap: 2px !important;
