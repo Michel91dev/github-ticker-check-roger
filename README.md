@@ -1,7 +1,7 @@
-# 📈 Analyse Boursière — Streamlit App v2.6.x
+# 📈 Analyse Boursière — Ticker-Check-Roger v3.0.8
 
-Application d'analyse d'actions boursières personnelle pour **Romain, Roger et Michel**.
-Déployée sur Streamlit Community Cloud, données via Yahoo Finance, ISIN persistés dans MySQL sur VPS Hostinger.
+Application d'analyse d'actions boursières personnelle pour **Michel, Roger et Romain**.
+**Hébergée sur VPS Hostinger** (Docker + Streamlit), données via Yahoo Finance, persistance MySQL avec sessions 30 jours.
 
 ---
 
@@ -132,7 +132,7 @@ Chaque ligne de ticker utilise **3 colonnes Streamlit** `[1, 8, 1]` :
 
 ---
 
-## Persistance MySQL — Infrastructure
+## Infrastructure VPS Hostinger
 
 ### Serveur
 
@@ -141,17 +141,25 @@ Chaque ligne de ticker utilise **3 colonnes Streamlit** `[1, 8, 1]` :
 | Hébergeur | Hostinger VPS |
 | IP publique | `76.13.49.53` |
 | OS | Ubuntu 24.04 LTS |
-| Runtime | Docker 29.2.1 |
-| Conteneur | `mysql-bourse` (image `mysql:8.0`) |
-| Port exposé | `3306` |
+| Runtime | Docker |
+| **App Streamlit** | Conteneur `streamlit-bourse`, port `8501` |
+| **MySQL** | Conteneur `mysql-bourse` (image `mysql:8.0`), port `3306` |
+| URL publique | http://76.13.49.53:8501 |
+| Deploy script | `/opt/streamlit-bourse/deploy.sh` |
 
-### Base de données
+### Base de données MySQL
 
 ```
 Base    : bourse_isin
 User    : bourse_user
-Table   : isin_utilisateurs
+Tables  : isin_utilisateurs, sessions, utilisateurs
 ```
+
+**Nouveautés v3.0.x** :
+- Table `sessions` : persistance login 30 jours via token UUID
+- Table `utilisateurs` : authentification bcrypt (admin/user)
+- SQLAlchemy QueuePool (pool_size=5, max_overflow=10)
+- Secrets via `.env` sur VPS (python-dotenv)
 
 ### Schéma de la table
 
@@ -217,22 +225,25 @@ docker start mysql-bourse
 
 ---
 
-## Configuration Streamlit Cloud
+## Configuration VPS
 
-Les credentials MySQL sont stockés dans **Streamlit Secrets** (jamais dans le code source).
+Les credentials MySQL sont stockés dans **`.env`** sur le VPS (jamais dans le code source).
 
-### Accès : [share.streamlit.io](https://share.streamlit.io) → App → Settings → Secrets
+### Fichier `/opt/streamlit-bourse/.env`
 
-```toml
-[mysql]
-host = "76.13.49.53"
-port = 3306
-database = "bourse_isin"
-user = "bourse_user"
-password = "..."
+```bash
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_DATABASE=bourse_isin
+MYSQL_USER=bourse_user
+MYSQL_PASSWORD=...
 ```
 
-> ⚠️ **Sécurité** : ne jamais committer les credentials dans Git. Le mot de passe réel est dans Streamlit Secrets uniquement.
+> ⚠️ **Sécurité** : `.env` est dans `.gitignore`. Un fichier `.env.example` est fourni dans le repo.
+
+### Compatibilité Streamlit Cloud conservée
+
+Le code lit d'abord `os.environ` (`.env` VPS), puis `st.secrets` en fallback (Streamlit Cloud). L'app reste déployable sur Streamlit Cloud si besoin.
 
 ---
 
@@ -281,27 +292,41 @@ L'application s'ouvre à http://localhost:8501
 
 ---
 
-## Déploiement
+## Déploiement VPS
 
-- **Plateforme** : Streamlit Community Cloud
+- **Plateforme** : VPS Hostinger (Docker)
 - **Branche déployée** : `main`
-- **Déclencheur** : chaque push sur `main` déclenche un redéploiement automatique (~1 min)
-- **Branche de développement** : `Version-avec-iphone`
+- **Deploy manuel** : SSH + script `/opt/streamlit-bourse/deploy.sh`
 
 ### Workflow de déploiement
 
 ```bash
-# Développer sur la branche Version-avec-iphone
-git checkout Version-avec-iphone
-# ... modifications ...
+# 1. Développer en local
 git add -A && git commit -m "Description du changement"
-
-# Merger sur main pour déployer
-git checkout main
-git merge Version-avec-iphone
 git push origin main
-git checkout Version-avec-iphone
+
+# 2. Déployer sur VPS (depuis local)
+ssh root@76.13.49.53
+cd /opt/streamlit-bourse
+./deploy.sh
 ```
+
+### Script `deploy.sh`
+
+```bash
+#!/bin/bash
+cd /opt/streamlit-bourse
+git pull origin main
+docker stop streamlit-bourse
+docker rm streamlit-bourse
+docker build -t streamlit-bourse .
+docker run -d --name streamlit-bourse --env-file .env -p 8501:8501 streamlit-bourse
+date
+```
+
+### Déploiement automatique (TODO)
+
+Webhook GitHub → `deploy.sh` auto à chaque push sur `main`
 
 ---
 
@@ -311,26 +336,30 @@ Le fichier `version.txt` contient le numéro de version courant, affiché dans l
 
 | Version | Description |
 |---------|-------------|
-| 2.5.23 | Version de référence cartouches sidebar |
-| 2.5.31 | ISIN dans les cartouches (texte brut) |
-| 2.5.34 | Boule séparée en colonne, cercle rouge sélection |
-| 2.5.35 | Bordure boule 4px |
-| 2.6.0  | **Version stable de qualité ⭐** — sidebar finalisée |
-| 2.6.1  | Persistance ISIN via MySQL (VPS Hostinger) |
-| 2.6.2  | Debug secrets MySQL — affichage erreur détaillé |
-| 2.6.3  | Interface ISIN refaite : onglets ➕ Ajouter / ✏️ Modifier |
-| 2.7.0  | **🚀 Zéro hardcode** — tickers chargés depuis MySQL, ajout ticker via UI |
+| 2.9.2 | Dernière version Streamlit Cloud |
+| **3.0.0** | **Migration VPS** — SQLAlchemy pool + .env secrets |
+| 3.0.1 | Sessions MySQL persistantes 30 jours (token UUID) |
+| 3.0.2 | Sidebar : fond coloré ticker sélectionné (CSS) |
+| 3.0.3 | Fix CSS alignement boutons |
+| 3.0.4 | Fix encodage UTF-8 (Émergents) |
+| 3.0.5 | Sidebar HTML pur (test) |
+| 3.0.6 | JS DOM pour fond coloré ticker sélectionné |
+| 3.0.7 | Fix encodage UTF-8 connect_args + CSS poubelle 36px |
+| **3.0.8** | **Mode personnalisé déplacé avant ADMINISTRATION** |
 
 ---
 
 ## Dépendances
 
 ```
-streamlit>=1.29.0    # Framework web interactif
-yfinance>=0.2.28     # Données boursières Yahoo Finance
-plotly>=5.17.0       # Graphiques interactifs
-pandas>=2.2.0        # Manipulation et analyse de données
-pymysql>=1.1.0       # Connexion MySQL (persistance ISIN)
+streamlit>=1.29.0       # Framework web interactif
+yfinance>=0.2.28        # Données boursières Yahoo Finance
+plotly>=5.17.0          # Graphiques interactifs
+pandas>=2.2.0           # Manipulation et analyse de données
+pymysql>=1.1.0          # Driver MySQL
+sqlalchemy>=2.0.0       # ORM + connection pooling
+python-dotenv>=1.0.0    # Gestion .env secrets
+bcrypt>=4.0.0           # Hash mots de passe
 ```
 
 ---
