@@ -1,0 +1,89 @@
+# =============================================================================
+# .windsurfignore - Fichier d'optimisation pour Windsurf AI
+# =============================================================================
+# Michel grace à Gemini le 2026 0321
+# ⚠️ OBJECTIF : Dire à Windsurf quels fichiers/dossiers ignorer pour éviter :
+# - Surcharge processeur (milliers d'appels système/seconde)
+# - Surcharge disque (indexation inutile de Go de données)
+# - Interface saccadée (souris/fenêtres qui laguent)
+# - Mémoire gaspillée (index de fichiers inutiles)
+#
+# PRINCIPE : Windsurf essaie d'indexer TOUT ce qu'il voit pour vous aider.
+#          Sans ce fichier, il va indexer des Go de données inutiles.
+#
+# RÈGLE D'OR : Mieux vaut ignorer un fichier utile que d'indexer un fichier inutile
+#
+# =============================================================================
+
+# Fichiers binaires et documents (gardés pour le contexte pertinent)
+# NOTE : On garde PDF/Word/Excel car ils peuvent contenir de la documentation technique
+#        importante pour le projet (cahier des charges, API docs, specs)
+#        Ces fichiers sont lourds mais peuvent fournir un contexte utile à l'IA
+# **/*.pdf
+# **/*.docx
+# **/*.xlsx
+
+# Archives binaires (à ignorer - pas de contexte utile pour le code)
+**/*.zip
+**/*.tar.gz
+**/*.iso
+
+# Dépendances (les plus lourds)
+# node_modules/ : 50k+ petits scripts JavaScript (ex: React, Vue)
+# bower_components/ : Ancien système de dépendances JS
+# vendor/ : Bibliothèques tierces (PHP, Ruby, etc.)
+node_modules/
+bower_components/
+vendor/
+
+# Dossiers de compilation (fichiers générés automatiquement)
+# dist/ : Version optimisée pour production (JS minifié, CSS compressé)
+# build/ : Fichiers intermédiaires de compilation
+# out/ : Sortie de compilation (TypeScript, etc.)
+# bin/ : Exécutables compilés
+# obj/ : Fichiers objets (C/C++, .NET)
+dist/
+build/
+out/
+bin/
+obj/
+
+# Environnements virtuels (Python, etc.)
+# .venv/ : Environnement virtuel Python (packages isolés)
+# venv/ : Autre nom pour environnement virtuel
+# env/ : Environnement virtuel générique
+# __pycache__/ : Cache Python (fichiers .pyc compilés)
+.venv/
+venv/
+env/
+__pycache__/
+
+# Données et Logs (très important sur tes 8 To)
+# *.log : Fichiers de logs (peuvent faire des Go)
+# logs/ : Dossier central de logs
+# temp/ : Fichiers temporaires
+# tmp/ : Autre dossier temporaire
+# data/ : DONNÉES VOLUMINEUSES - CRUCIAL à ignorer
+# datasets/ : Jeux de données (ML, data science)
+# *.csv : Fichiers de données (peuvent faire des Go)
+# *.json : Fichiers JSON (peuvent être très gros)
+# *.sql : Dumps de base de données
+*.log
+logs/
+temp/
+tmp/
+data/
+datasets/
+*.csv
+*.json
+*.sql
+
+# Divers
+# .git/ : Historique Git (milliers de petits fichiers)
+# .DS_Store : Fichiers système macOS (cachés, inutiles)
+# .idea/ : Configuration PyCharm/IntelliJ
+# .vscode/ : Configuration VS Code
+.git/
+.DS_Store
+.idea/
+.vscode/

@@ -1068,6 +1068,26 @@ def main():
             except Exception as e:
                 st.error(f"Erreur : {e}")
 
+    # ── Mode personnalisé (ticker libre) ──
+    custom_mode = st.sidebar.checkbox("🔧 Mode personnalisé")
+
+    if custom_mode:
+        ticker_input = st.sidebar.text_input("Ticker personnalisé (ex: GOOGL, META)", value="").upper()
+        if ticker_input:
+            selected_ticker = ticker_input
+            nom_action = f"{ticker_input} (personnalisé)"
+        else:
+            st.sidebar.info("Entrez un ticker personnalisé")
+            st.stop()
+    elif selected_ticker:
+        nom_action = actions_disponibles[selected_ticker]
+    else:
+        # Par défaut : S&P 500
+        selected_ticker = "^GSPC"
+        nom_action = "📈 S&P 500"
+
+    ticker_symbol = selected_ticker
+
     # ── Section Admin (visible uniquement pour l'admin) ──
     if st.session_state.get("role_connecte") == "admin":
         st.sidebar.markdown(
@@ -1120,26 +1140,6 @@ def main():
                             st.rerun()
                         else:
                             st.error("Erreur MySQL")
-
-    # Option personnalisée en dessous
-    custom_mode = st.sidebar.checkbox("🔧 Mode personnalisé")
-
-    if custom_mode:
-        ticker_input = st.sidebar.text_input("Ticker personnalisé (ex: GOOGL, META)", value="").upper()
-        if ticker_input:
-            selected_ticker = ticker_input
-            nom_action = f"{ticker_input} (personnalisé)"
-        else:
-            st.sidebar.info("Entrez un ticker personnalisé")
-            st.stop()
-    elif selected_ticker:
-        nom_action = actions_disponibles[selected_ticker]
-    else:
-        # Par défaut : S&P 500
-        selected_ticker = "^GSPC"
-        nom_action = "📈 S&P 500"
-
-    ticker_symbol = selected_ticker
 
     periode = st.sidebar.selectbox(
         "Période",
