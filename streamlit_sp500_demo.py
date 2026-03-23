@@ -193,12 +193,12 @@ def _get_db_config() -> dict:
 
 
 @st.cache_resource
-def _get_engine():
+def _get_engine(_version="v2"):  # _version force le vidage du cache quand changé
     """Crée le pool de connexions SQLAlchemy (singleton, partagé entre sessions)."""
     cfg = _get_db_config()
     url = (
         f"mysql+pymysql://{cfg['user']}:{cfg['password']}"
-        f"@{cfg['host']}:{cfg['port']}/{cfg['database']}?charset=utf8mb4"
+        f"@{cfg['host']}:{cfg['port']}/{cfg['database']}"
     )
     return create_engine(
         url,
@@ -207,6 +207,7 @@ def _get_engine():
         max_overflow=10,
         pool_pre_ping=True,
         connect_args={"charset": "utf8mb4", "use_unicode": True},
+        encoding="utf-8",
     )
 
 
