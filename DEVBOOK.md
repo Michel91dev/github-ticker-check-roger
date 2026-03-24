@@ -1,13 +1,13 @@
 # DEVBOOK - Analyse Actions (Bourse Roger)
 
 ## Description
-Application Streamlit d'analyse technique d'actions boursières pour Romain, Roger et Michel.
-Déployée sur Streamlit Cloud : bourse200-50.streamlit.app
+Application Streamlit d'analyse technique d'actions boursières pour Michel, Roger et Romain.
+**Hébergée sur VPS Hostinger** : http://76.13.49.53:8501
 
 ## Règles de développement
 - **Toujours incrémenter la version** dans `version.txt` à chaque commit
-- **Numérotation flexible** : v2.5.23, v3.10.15, etc. (pas de limite à 10)
-- **Toujours merger dans `main`** avant push (Streamlit Cloud déploie depuis `main`)
+- **Numérotation flexible** : v3.1.x (patch auto), v3.x.0 (mineure avec autorisation)
+- **Déploiement VPS** : `git push origin main` puis SSH + `./deploy.sh`
 - **Pas de `<script>` dans Streamlit** : `st.markdown()` ne supporte pas le JavaScript
 - **Tester sur iPhone** après chaque modification CSS mobile
 

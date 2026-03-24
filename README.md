@@ -12,7 +12,7 @@ Application d'analyse d'actions boursières personnelle pour **Michel, Roger et 
 3. [Interface utilisateur](#interface-utilisateur)
 4. [Indicateurs techniques](#indicateurs-techniques)
 5. [Persistance MySQL — Infrastructure](#persistance-mysql--infrastructure)
-6. [Configuration Streamlit Cloud](#configuration-streamlit-cloud)
+6. [Configuration VPS](#configuration-vps)
 7. [Installation et lancement local](#installation-et-lancement-local)
 8. [Déploiement](#déploiement)
 9. [Gestion des versions](#gestion-des-versions)
@@ -241,9 +241,6 @@ MYSQL_PASSWORD=...
 
 > ⚠️ **Sécurité** : `.env` est dans `.gitignore`. Un fichier `.env.example` est fourni dans le repo.
 
-### Compatibilité Streamlit Cloud conservée
-
-Le code lit d'abord `os.environ` (`.env` VPS), puis `st.secrets` en fallback (Streamlit Cloud). L'app reste déployable sur Streamlit Cloud si besoin.
 
 ---
 
@@ -271,15 +268,14 @@ pip install -r requirements.txt
 
 ### Configuration MySQL en local
 
-Créer le fichier `.streamlit/secrets.toml` (non versionné) :
+Créer le fichier `.env` à la racine du projet :
 
-```toml
-[mysql]
-host = "76.13.49.53"
-port = 3306
-database = "bourse_isin"
-user = "bourse_user"
-password = "..."
+```bash
+MYSQL_HOST=76.13.49.53
+MYSQL_PORT=3306
+MYSQL_DATABASE=bourse_isin
+MYSQL_USER=bourse_user
+MYSQL_PASSWORD=...
 ```
 
 ### Lancement
@@ -336,7 +332,7 @@ Le fichier `version.txt` contient le numéro de version courant, affiché dans l
 
 | Version | Description |
 |---------|-------------|
-| 2.9.2 | Dernière version Streamlit Cloud |
+| 2.9.2 | Dernière version avant migration VPS |
 | **3.0.0** | **Migration VPS** — SQLAlchemy pool + .env secrets |
 | 3.0.1 | Sessions MySQL persistantes 30 jours (token UUID) |
 | 3.0.2 | Sidebar : fond coloré ticker sélectionné (CSS) |

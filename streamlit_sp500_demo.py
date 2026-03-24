@@ -24,7 +24,7 @@ import streamlit.components.v1 as components
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import QueuePool
 
-load_dotenv()  # Charge .env si présent (VPS), sinon sans effet (Streamlit Cloud)
+load_dotenv()  # Charge .env pour configuration VPS
 
 # Lire la version depuis le fichier
 def get_version():
