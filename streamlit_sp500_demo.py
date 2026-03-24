@@ -842,11 +842,17 @@ def main():
         components.html(
             f"""<script>
             (function() {{
-                function styliserBouton() {{
+                function styliserBoutons() {{
                     var sidebar = window.parent.document.querySelector('[data-testid="stSidebarContent"]');
                     if (!sidebar) return;
                     var boutons = sidebar.querySelectorAll('button');
                     boutons.forEach(function(btn) {{
+                        // Réinitialiser tous les boutons d'abord
+                        btn.style.backgroundColor = '';
+                        btn.style.color = '';
+                        btn.style.border = '';
+                        btn.style.fontWeight = '';
+                        // Colorer uniquement le bouton sélectionné
                         var txt = btn.innerText || '';
                         if (txt.includes({repr(nom_sel_pur)})) {{
                             btn.style.backgroundColor = '{couleur_sel}';
@@ -856,8 +862,8 @@ def main():
                         }}
                     }});
                 }}
-                setTimeout(styliserBouton, 100);
-                setTimeout(styliserBouton, 400);
+                setTimeout(styliserBoutons, 100);
+                setTimeout(styliserBoutons, 400);
             }})();
             </script>""",
             height=0
