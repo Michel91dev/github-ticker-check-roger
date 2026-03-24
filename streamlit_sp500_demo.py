@@ -14,7 +14,6 @@ from concurrent.futures import ThreadPoolExecutor
 import re
 import requests
 import pymysql
-import bcrypt
 import hmac
 import hashlib
 import secrets
@@ -290,6 +289,11 @@ def supprimer_isin_mysql(utilisateur: str, ticker: str) -> bool:
         return False
 
 
+def _sha256_mdp(mdp: str) -> str:
+    """Retourne le hash SHA-256 hex du mot de passe (sans caractères spéciaux)."""
+    return hashlib.sha256(mdp.encode("utf-8")).hexdigest()
+
+
 def verifier_mdp(utilisateur: str, mdp: str) -> bool:
     """Vérifier le mot de passe d'un utilisateur. Retourne True si correct."""
     try:
@@ -299,20 +303,9 @@ def verifier_mdp(utilisateur: str, mdp: str) -> bool:
                 {"u": utilisateur}
             ).fetchone()
         if not row:
-            print(f"[DEBUG] Utilisateur '{utilisateur}' non trouvé en base")
             return False
-
-        hash_base = row[0]
-        print(f"[DEBUG] Utilisateur: {utilisateur}")
-        print(f"[DEBUG] Hash en base: {hash_base[:20]}...")
-        print(f"[DEBUG] Mot de passe saisi: {mdp}")
-
-        resultat = bcrypt.checkpw(mdp.encode("utf-8"), hash_base.encode("utf-8"))
-        print(f"[DEBUG] Résultat bcrypt.checkpw: {resultat}")
-
-        return resultat
-    except Exception as e:
-        print(f"[DEBUG] Exception dans verifier_mdp: {e}")
+        return hmac.compare_digest(row[0], _sha256_mdp(mdp))
+    except Exception:
         return False
 
 
@@ -486,14 +479,8 @@ def main():
     version = get_version()
     docs = get_indicator_docs()
 
-    # AUTHENTIFICATION DÉSACTIVÉE TEMPORAIREMENT
-    # Connexion automatique en tant que Roger
-    st.session_state["authentifie"] = True
-    st.session_state["utilisateur_connecte"] = "Roger"
-    st.session_state["role_connecte"] = "user"
-
-    # if not afficher_login(version):
-    #     st.stop()
+    if not afficher_login(version):
+        st.stop()
 
     # CSS global : alignement gauche des boutons sidebar
     st.markdown("""
