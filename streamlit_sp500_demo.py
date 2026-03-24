@@ -198,7 +198,6 @@ def _get_engine(_version="v2"):  # _version force le vidage du cache quand chang
         max_overflow=10,
         pool_pre_ping=True,
         connect_args={"charset": "utf8mb4", "use_unicode": True},
-        encoding="utf-8",
     )
 
 
