@@ -487,8 +487,14 @@ def main():
     version = get_version()
     docs = get_indicator_docs()
 
-    if not afficher_login(version):
-        st.stop()
+    # AUTHENTIFICATION DÉSACTIVÉE TEMPORAIREMENT
+    # Connexion automatique en tant que Roger
+    st.session_state["authentifie"] = True
+    st.session_state["utilisateur_connecte"] = "Roger"
+    st.session_state["role_connecte"] = "user"
+
+    # if not afficher_login(version):
+    #     st.stop()
 
     # CSS global : alignement gauche des boutons sidebar
     st.markdown("""
