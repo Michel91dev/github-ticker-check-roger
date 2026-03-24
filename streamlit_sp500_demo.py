@@ -300,9 +300,20 @@ def verifier_mdp(utilisateur: str, mdp: str) -> bool:
                 {"u": utilisateur}
             ).fetchone()
         if not row:
+            print(f"[DEBUG] Utilisateur '{utilisateur}' non trouvé en base")
             return False
-        return bcrypt.checkpw(mdp.encode("utf-8"), row[0].encode("utf-8"))
-    except Exception:
+
+        hash_base = row[0]
+        print(f"[DEBUG] Utilisateur: {utilisateur}")
+        print(f"[DEBUG] Hash en base: {hash_base[:20]}...")
+        print(f"[DEBUG] Mot de passe saisi: {mdp}")
+
+        resultat = bcrypt.checkpw(mdp.encode("utf-8"), hash_base.encode("utf-8"))
+        print(f"[DEBUG] Résultat bcrypt.checkpw: {resultat}")
+
+        return resultat
+    except Exception as e:
+        print(f"[DEBUG] Exception dans verifier_mdp: {e}")
         return False
 
 
