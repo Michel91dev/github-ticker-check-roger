@@ -863,45 +863,103 @@ def main():
         with onglet_add:
             st.caption(f"Ajouter un ticker pour **{utilisateur}**")
 
-            # Étape 1 : saisie ISIN
-            nouvel_isin_add = st.text_input(
-                "ISIN :", key="nouvel_isin_add_input", max_chars=14, placeholder="ex: GB0009895292"
-            ).strip().upper()
+            # Choix du mode de saisie
+            mode_saisie = st.radio(
+                "Rechercher par :",
+                ["📊 Ticker (ex: AAPL, MC.PA)", "🔖 ISIN (ex: US0378331005)"],
+                horizontal=True,
+                key="mode_saisie_radio"
+            )
+
+            mode_ticker = "Ticker" in mode_saisie
+
+            if mode_ticker:
+                # Mode : saisie par ticker
+                ticker_saisi = st.text_input(
+                    "Ticker Yahoo Finance :",
+                    key="ticker_add_input",
+                    placeholder="ex: AAPL, GOOGL, MC.PA"
+                ).strip().upper()
+                st.caption("💡 Le ticker sera validé et l'ISIN sera recherché automatiquement")
+            else:
+                # Mode : saisie par ISIN
+                isin_saisi = st.text_input(
+                    "ISIN :",
+                    key="isin_add_input",
+                    max_chars=14,
+                    placeholder="ex: GB0009895292"
+                ).strip().upper()
+                isin_valide = bool(re.match(r'^[A-Z]{2}[A-Z0-9]{9,12}$', isin_saisi)) if isin_saisi else False
+                if isin_saisi and not isin_valide:
+                    st.caption("⚠️ ISIN invalide")
+                elif isin_valide:
+                    st.caption("✅ ISIN valide")
+
             cat_add = st.radio(
                 "Catégorie :", ["PEA", "COMPTE TITRES"], horizontal=True, key="cat_add_radio"
             )
             cat_key_add = "PEA" if cat_add == "PEA" else "TITRES"
-            isin_valide_add = bool(re.match(r'^[A-Z]{2}[A-Z0-9]{9,12}$', nouvel_isin_add)) if nouvel_isin_add else False
-            if nouvel_isin_add and not isin_valide_add:
-                st.caption("⚠️ ISIN invalide")
-            elif isin_valide_add:
-                st.caption("✅ ISIN valide")
 
-            if st.button("🔍 Rechercher", key="btn_rechercher_isin"):
-                if not nouvel_isin_add:
-                    st.warning("ISIN vide.")
-                elif not isin_valide_add:
-                    st.error("Format ISIN invalide.")
-                else:
-                    try:
-                        resp = requests.get(
-                            "https://query2.finance.yahoo.com/v1/finance/search",
-                            params={"q": nouvel_isin_add, "quotesCount": 1, "newsCount": 0},
-                            headers={"User-Agent": "Mozilla/5.0"},
-                            timeout=5
-                        )
-                        quotes = resp.json().get("quotes", [])
-                        if quotes:
-                            st.session_state["add_ticker_trouve"] = quotes[0].get("symbol", "")
-                            st.session_state["add_nom_trouve"] = quotes[0].get("longname") or quotes[0].get("shortname") or ""
-                            st.session_state["add_isin_trouve"] = nouvel_isin_add
-                            st.session_state["add_cat_trouve"] = cat_key_add
-                        else:
+            if st.button("🔍 Rechercher", key="btn_rechercher_ticker_isin"):
+                if mode_ticker:
+                    # Recherche par ticker → récupérer ISIN
+                    if not ticker_saisi:
+                        st.warning("Ticker vide.")
+                    else:
+                        try:
+                            # Récupérer les infos du ticker via yfinance
+                            ticker_obj = yf.Ticker(ticker_saisi)
+                            info = ticker_obj.info
+
+                            # Extraire ISIN si disponible
+                            isin_trouve = info.get("isin", "")
+                            nom_trouve = info.get("longName") or info.get("shortName") or ticker_saisi
+
+                            if isin_trouve:
+                                st.session_state["add_ticker_trouve"] = ticker_saisi
+                                st.session_state["add_nom_trouve"] = nom_trouve
+                                st.session_state["add_isin_trouve"] = isin_trouve
+                                st.session_state["add_cat_trouve"] = cat_key_add
+                                st.success(f"✅ Ticker **{ticker_saisi}** trouvé — ISIN : **{isin_trouve}**")
+                            else:
+                                # Pas d'ISIN disponible, mais ticker valide
+                                st.session_state["add_ticker_trouve"] = ticker_saisi
+                                st.session_state["add_nom_trouve"] = nom_trouve
+                                st.session_state["add_isin_trouve"] = "ISIN_INCONNU"
+                                st.session_state["add_cat_trouve"] = cat_key_add
+                                st.warning(f"⚠️ Ticker **{ticker_saisi}** trouvé mais ISIN non disponible via Yahoo Finance")
+                        except Exception as e:
                             st.session_state["add_ticker_trouve"] = ""
-                            st.error(f"Aucun résultat pour {nouvel_isin_add} — vérifiez l'ISIN.")
-                    except Exception as e:
-                        st.session_state["add_ticker_trouve"] = ""
-                        st.error(f"Erreur recherche : {e}")
+                            st.error(f"Erreur : ticker **{ticker_saisi}** introuvable ou invalide — {e}")
+                else:
+                    # Recherche par ISIN → récupérer ticker
+                    if not isin_saisi:
+                        st.warning("ISIN vide.")
+                    elif not isin_valide:
+                        st.error("Format ISIN invalide.")
+                    else:
+                        try:
+                            resp = requests.get(
+                                "https://query2.finance.yahoo.com/v1/finance/search",
+                                params={"q": isin_saisi, "quotesCount": 1, "newsCount": 0},
+                                headers={"User-Agent": "Mozilla/5.0"},
+                                timeout=5
+                            )
+                            quotes = resp.json().get("quotes", [])
+                            if quotes:
+                                ticker_trouve = quotes[0].get("symbol", "")
+                                nom_trouve = quotes[0].get("longname") or quotes[0].get("shortname") or ""
+                                st.session_state["add_ticker_trouve"] = ticker_trouve
+                                st.session_state["add_nom_trouve"] = nom_trouve
+                                st.session_state["add_isin_trouve"] = isin_saisi
+                                st.session_state["add_cat_trouve"] = cat_key_add
+                                st.success(f"✅ ISIN **{isin_saisi}** trouvé — Ticker : **{ticker_trouve}**")
+                            else:
+                                st.session_state["add_ticker_trouve"] = ""
+                                st.error(f"Aucun résultat pour ISIN **{isin_saisi}** — vérifiez le code ISIN")
+                        except Exception as e:
+                            st.session_state["add_ticker_trouve"] = ""
+                            st.error(f"Erreur recherche : {e}")
 
             # Étape 2 : validation si un résultat est trouvé
             if st.session_state.get("add_ticker_trouve"):
